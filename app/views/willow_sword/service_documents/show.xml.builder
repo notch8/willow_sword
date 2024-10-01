@@ -5,11 +5,12 @@ xml.service('xmlns:atom':"http://www.w3.org/2005/Atom", 'xmlns:dcterms':"http://
     xml.atom :title, WillowSword.config.title
     @collections.each do |collection|
       xml.collection(href: collection_url(collection.id)) do
-        xml.atom :title, collection.title.join(", ")
+        xml.atom :title, Array.wrap(collection.title).join(", ")
+        xml.type collection.internal_resource
         xml.accept "*/*"
         xml.accept(alternate:"multipart-related") do xml.text! "*/*" end
         xml.sword :collectionPolicy, "TODO: Collection Policy"
-        xml.dcterms :abstract, collection.description.join(", ")
+        xml.dcterms :abstract, Array.wrap(collection.description).join(", ")
         xml.sword :mediation, "true"
         xml.sword :treatment, "TODO: Treatment description"
         xml.sword :acceptPackaging, "http://purl.org/net/sword/package/SimpleZip"
