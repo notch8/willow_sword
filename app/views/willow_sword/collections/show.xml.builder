@@ -1,5 +1,6 @@
 xml.feed(xmlns:"http://www.w3.org/2005/Atom") do
   xml.title @collection.title.join(", ")
+  xml.type @collection.internal_resource
   xml.link(rel:"edit", href:collection_works_url(@collection.id))
   @works.each do |work|
     xml.entry do
