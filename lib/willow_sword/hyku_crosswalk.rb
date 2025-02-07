@@ -28,12 +28,6 @@ module WillowSword
       namespaces.key(ns) || prefix_lookup_for('h4cmeta')
     end
 
-    # @returns [Array<String>] a list of Hyrax based visibility terms
-    def visibility_terms
-      %w(visibility_during_embargo visibility_after_embargo embargo_release_date
-         visibility_during_lease visibility_after_lease lease_expiration_date)
-    end
-
     # @returns [Array<String>] a list of terms used in the work to be included in the crosswalk
     def terms
       terms_form_work - system_terms
@@ -139,6 +133,12 @@ module WillowSword
     # @returns [Array<String>] a list of terms used in the work to be included in the crosswalk
     def terms_form_work
       (terms_from_schema + visibility_terms).reject { |term| work.send(term).to_s.blank? }
+    end
+
+    # @returns [Array<String>] a list of Hyrax based visibility terms
+    def visibility_terms
+      %w(visibility_during_embargo visibility_after_embargo embargo_release_date
+         visibility_during_lease visibility_after_lease lease_expiration_date)
     end
   end
 end
