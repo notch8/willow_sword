@@ -5,8 +5,9 @@ RSpec.describe WillowSword::DcCrosswalk do
   describe 'DcCrosswalk with no source' do
     before(:each) do
       @src = nil
+      @work_klass = nil
       # @no_src = File.join(ENGINE_RAILS_ROOT, 'spec', 'fixtures', 'dc2.xml')
-      @dc = WillowSword::DcCrosswalk.new(@src)
+      @dc = WillowSword::DcCrosswalk.new(@src, @work_klass)
     end
 
     it "should have the dublin core terms" do
@@ -39,8 +40,9 @@ RSpec.describe WillowSword::DcCrosswalk do
   describe 'DcCrosswalk with valid source' do
     before(:each) do
       @src = File.join(ENGINE_RAILS_ROOT, 'spec', 'fixtures', 'dc.xml')
+      @work_klass = nil
       # @no_src = File.join(ENGINE_RAILS_ROOT, 'spec', 'fixtures', 'dc2.xml')
-      @dc = WillowSword::DcCrosswalk.new(@src)
+      @dc = WillowSword::DcCrosswalk.new(@src, @work_klass)
     end
 
     it 'should return a valid crosswalk' do
@@ -66,7 +68,8 @@ RSpec.describe WillowSword::DcCrosswalk do
   describe 'DcCrosswalk with invalid source' do
     before(:each) do
       no_src = File.join(ENGINE_RAILS_ROOT, 'spec', 'fixtures', 'dc2.xml')
-      @dc = WillowSword::DcCrosswalk.new(no_src)
+      work_klass = nil
+      @dc = WillowSword::DcCrosswalk.new(no_src, work_klass)
     end
 
     it 'should return a empty crosswalk' do
@@ -79,7 +82,8 @@ RSpec.describe WillowSword::DcCrosswalk do
   describe 'DcCrosswalk with non xml source' do
     before(:each) do
       src = File.join(ENGINE_RAILS_ROOT, 'spec', 'fixtures', 'testPackage', 'Swordv2Spec.pdf')
-      @dc = WillowSword::DcCrosswalk.new(src)
+      work_klass = nil
+      @dc = WillowSword::DcCrosswalk.new(src, work_klass)
     end
 
     it 'should return a empty crosswalk' do
