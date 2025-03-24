@@ -36,7 +36,7 @@ RSpec.describe 'willow_sword/works/show.hyku.xml.builder', type: :view do
     actual_doc = Nokogiri::XML(rendered)
     expected_doc = Nokogiri::XML(<<~XML)
       <?xml version="1.0"?>
-      <feed dc="http://purl.org/dc/elements/1.1/" dcterms="http://purl.org/dc/terms/" h4cmeta="https://hykucommons.org/schema/metadata" h4csys="https://hykucommons.org/schema/system">
+      <feed xmlns="http://www.w3.org/2005/Atom" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:h4cmeta="https://hykucommons.org/schema/metadata" xmlns:h4csys="https://hykucommons.org/schema/system">
         <title>Test Title</title>
         <content rel="src" href="http://example.com/collections/col123/works/123"/>
         <link rel="edit" href="http://example.com/collections/col123/works/123/file_sets"/>

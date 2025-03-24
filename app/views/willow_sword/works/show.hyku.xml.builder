@@ -1,5 +1,5 @@
 xw = WillowSword::HykuCrosswalk.new(@object)
-xml.feed(xw.namespaces) do
+xml.feed(xw.namespace_declarations) do
   xml.title @object.title.join(", ")
   # Get work
   xml.content(rel:"src", href:collection_work_url(params[:collection_id], @object))
