@@ -37,7 +37,7 @@ module WillowSword
     def system_terms
       %w(id internal_resource created_at
          updated_at new_record date_modified
-         date_uploaded depositor state)
+         date_uploaded depositor state).select { |term| work.respond_to?(term) }
     end
 
     # @returns [Array<String>] a list of Dublin Core terms used in the work
