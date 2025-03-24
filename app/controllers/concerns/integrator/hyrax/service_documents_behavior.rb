@@ -4,11 +4,12 @@ module Integrator
       extend ActiveSupport::Concern
       def show
         ids = collection_ids + admin_set_ids
-        @collections = ::Hyrax.query_service.find_many_by_ids(ids: ids).reject { |c| c.singleton_class.to_s.nil? }
-        @collections = @collections&.sort_by(&:internal_resource)
-        if @collections.blank?
-          @collections = [Collection.new(WillowSword.config.default_collection)]
-        end
+        query = ids.map { |id| "id:#{id}" }.join(" OR ")
+        results = ::Hyrax::SolrService.query(query, rows: ids.length, fl: 'id,title_tesim,has_model_ssim')
+        @collections = results.map { |doc| SolrDocument.new(doc) }
+        return @collections = [Collection.new(WillowSword.config.default_collection)] if @collections.blank?
+
+        @collections&.sort_by { |c| c['has_model_ssim'] }
       end
 
       private

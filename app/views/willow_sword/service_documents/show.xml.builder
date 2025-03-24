@@ -6,7 +6,7 @@ xml.service('xmlns:atom':"http://www.w3.org/2005/Atom", 'xmlns:dcterms':"http://
     @collections.each do |collection|
       xml.collection(href: collection_url(collection.id)) do
         xml.atom :title, Array.wrap(collection.title).join(", ")
-        xml.type collection.internal_resource
+        xml.type collection['has_model_ssim'].first
         xml.accept "*/*"
         xml.accept(alternate:"multipart-related") do xml.text! "*/*" end
         xml.sword :collectionPolicy, "TODO: Collection Policy"
