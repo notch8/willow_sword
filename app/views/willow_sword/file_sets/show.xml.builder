@@ -3,7 +3,7 @@ if WillowSword.config.xml_mapping_read == 'Hyku'
   # however I couldn't figure out a way in the builder to render that one.  It would be
   # Nice if we can just use the one builder in the future.
   xw = WillowSword::HykuCrosswalk.new(@file_set)
-  xml.feed(xw.namespaces) do
+  xml.feed(xw.namespace_declarations) do
     xml.title @file_set.title.join(", ")
     # Get work
     xml.content(rel:"src", href:collection_work_url(params[:collection_id], @file_set))

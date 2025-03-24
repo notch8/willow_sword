@@ -8,7 +8,15 @@ module WillowSword
       @terms = terms
     end
 
-    # @returns [Hash] a hash of namespaces used in the work
+    # @returns [Hash] a hash of namespace declarations used in the work
+    def namespace_declarations
+      default_namespace.merge(namespaces.transform_keys { |key| "xmlns:#{key}" })
+    end
+
+    def default_namespace
+      { 'xmlns' => 'http://www.w3.org/2005/Atom' }
+    end
+
     def namespaces
       {
         'dc' => 'http://purl.org/dc/elements/1.1/',
