@@ -71,7 +71,10 @@ module Integrator
       end
 
       def create_work
+        admin_set_id = extract_admin_set_id
         attrs = create_attributes
+        attrs.merge!({ admin_set_id: admin_set_id }) if admin_set_id
+
         @object = @work_klass.new
 
         perform_transaction_for(object: @object, attrs: attrs) do
@@ -109,8 +112,8 @@ module Integrator
           # Match with header first, then resource type and finally pick one from list
           hyrax_work_model = @headers.fetch(:hyrax_work_model, nil)
           if hyrax_work_model and work_models.include?(hyrax_work_model)
-            # Read the class from the header
-            @work_klass = work_models[hyrax_work_model].constantize
+            # Read the class from the header and prioritize the Valkyrie resource
+            @work_klass = "#{work_models[hyrax_work_model]}Resource".safe_constantize || work_models[hyrax_work_model].constantize
           elsif @resource_type and work_models.include?(@resource_type)
             # Set the class based on the resource type
             @work_klass = work_models[@resource_type].constantize
@@ -193,6 +196,21 @@ module Integrator
             msg += " - #{result.failure[1].full_messages.join(',')}" if result.failure[1].respond_to?(:full_messages)
             raise StandardError, msg, result.trace
           end
+        end
+
+        def extract_admin_set_id
+          id = URI(request.url).path.split('collections/').last.split('/').first
+
+          admin_set =
+            begin
+              ::Hyrax.query_service.find_by(id: id)
+            rescue Valkyrie::Persistence::ObjectNotFoundError
+              nil
+            end
+
+          return if admin_set.blank?
+
+          admin_set.is_a?(::Hyrax.config.admin_set_class) ? admin_set.id.to_s : nil
         end
     end
   end
