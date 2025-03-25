@@ -77,7 +77,7 @@ module Integrator
 
         @object = @work_klass.new
 
-        perform_transaction_for(object: @object, attrs: attrs) do
+        @object = perform_transaction_for(object: @object, attrs: attrs) do
           transactions['change_set.create_work']
             .with_step_args(
               'work_resource.add_file_sets' => { uploaded_files: uploaded_files },
