@@ -1,7 +1,6 @@
 xml.feed(xmlns: "http://www.w3.org/2005/Atom") do
   xml.title "Update Success"
   xml.updated Time.now.iso8601
-  xml.atom :title, WillowSword.config.title
   xml.link(rel: "self", href: collection_work_url(params[:collection_id], @object))
   xml.entry do
     xml.id @object.id
