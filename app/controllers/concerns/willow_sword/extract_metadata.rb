@@ -22,11 +22,24 @@ module WillowSword
     private
 
       def set_visibility
-        # Default to open visibility
-        @attributes[:visibility] ||= 'open'
-        # If visibility is set to embargo or lease but not all fields are present, fall back to restricted
-        @attributes[:visibility] = 'restricted' unless all_embargo_fields_present? || all_lease_fields_present?
-        @attributes
+        @attributes[:visibility]&.strip!
+        raise "Visibility required" if @attributes[:visibility].blank?
+
+        case @attributes[:visibility]
+        when 'authenticated', 'open', 'restricted'
+          return
+        when 'embargo'
+          return @attributes[:visibility] = all_embargo_fields_present? ? 'embargo' : 'restricted'
+        when 'lease'
+          return @attributes[:visibility] = all_lease_fields_present? ? 'lease' : 'restricted'
+        end
+
+        error_message = "Invalid visibility status: #{@attributes[:visibility]}. Valid options are: #{visibility_statuses.join(', ')}"
+        raise error_message
+      end
+
+      def visibility_statuses
+        %w[authenticated embargo lease open restricted]
       end
 
       def all_embargo_fields_present?
