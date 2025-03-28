@@ -118,8 +118,8 @@ module Integrator
             # Set the class based on the resource type
             @work_klass = work_models[@resource_type].constantize
           else
-            # Chooose the first class from the config
-            @work_klass = work_models[work_models.keys.first].constantize
+            # Fallback to default work model
+            @work_klass = WillowSword.config.default_work_model
           end
         end
 
