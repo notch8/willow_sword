@@ -23,7 +23,7 @@ module WillowSword
 
       def set_visibility
         @attributes[:visibility]&.strip!
-        raise "Visibility required" if @attributes[:visibility].blank?
+        return @attributes[:visibility] = 'restricted' if @attributes[:visibility].blank?
 
         case @attributes[:visibility]
         when 'authenticated', 'open', 'restricted'
