@@ -5,10 +5,8 @@ if WillowSword.config.xml_mapping_read == 'Hyku'
   xw = WillowSword::HykuCrosswalk.new(@file_set)
   xml.feed(xw.namespace_declarations) do
     xml.title @file_set.title.join(", ")
-    # Get work
-    xml.content(rel:"src", href:collection_work_url(params[:collection_id], @file_set))
-    # Add file to work
-    xml.link(rel:"edit", href:collection_work_file_sets_url(params[:collection_id], @file_set))
+    xml.content(rel:"src", href:collection_work_file_set_url(params[:collection_id], params[:work_id], @file_set))
+    xml.link(rel:"edit", href:collection_work_file_set_url(params[:collection_id], params[:work_id], @file_set))
 
     # Add h4csys, mainly system generated metadata
     xw.system_terms.each do |term|
