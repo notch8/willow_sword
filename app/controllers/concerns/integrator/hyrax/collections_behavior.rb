@@ -15,17 +15,18 @@ module Integrator
         #       next = (current == last) ? nil : current + 1
         @collection = nil
         @works = []
-        if params[:id] == WillowSword.config.default_collection[:id]
+        id = params[:id]
+        if id == WillowSword.config.default_collection[:id]
           @collection = klass.new(WillowSword.config.default_collection)
           WillowSword.config.work_models.each do |work_model|
             @works += work_model.singularize.classify.constantize.all
           end
         else
-          @collection = ::Hyrax.query_service.find_by(id:params[:id])
-          @works = ::Hyrax.query_service.find_many_by_ids(ids: @collection.member_collection_ids) if @collection.present?
+          @collection = ::SolrDocument.find(id)
+          @works = ::Hyrax::SolrService.query("member_of_collection_ids_ssim:#{id}", rows: 10_000).map { |hit| SolrDocument.new(hit) } if @collection.present?
         end
         unless @collection
-          message = "Server cannot find collection with id #{params[:id]}"
+          message = "Server cannot find collection with id #{id}"
           @error = WillowSword::Error.new(message)
           render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
           return
