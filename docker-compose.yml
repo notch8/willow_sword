@@ -1,0 +1,60 @@
+version: '3.8'
+services:
+  web:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/willow_sword
+    command: >
+      sh -c "echo \"gem 'willow_sword', path: '/willow_sword'\" >> Gemfile &&
+             BUNDLE_GEMFILE=Gemfile.dassie bundle install &&
+             bundle exec rails generate willow_sword:install &&
+             bundle exec rails db:migrate &&
+             bundle exec puma -v -b tcp://0.0.0.0:3000"
+    depends_on:
+      - postgres
+      - solr
+      - redis
+      - fcrepo
+    environment:
+      - DATABASE_URL=postgresql://hyrax_user:hyrax_password@postgres/hyrax_test
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=hyrax_user
+      - DB_PASSWORD=hyrax_password
+      - DB_NAME=hyrax
+      - FCREPO_HOST=fcrepo
+      - FCREPO_PORT=8080
+      - FCREPO_REST_PATH=rest
+      - RAILS_ENV=test
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SEED_DASSIE=true
+      - SOLR_HOST=solr
+      - SOLR_PORT=8983
+      - SOLR_URL=http://solr:8983/solr/hydra-development
+      - VALKYRIE_TRANSITION=true
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: hyrax_user
+      POSTGRES_PASSWORD: hyrax_password
+      POSTGRES_DB: hyrax
+
+  solr:
+    image: solr:8.11
+    ports:
+      - "8983:8983"
+    volumes:
+      - ./solr/conf:/opt/solr/server/configsets/hyraxconf
+    command: solr-precreate hydra-development /opt/solr/server/configsets/hyraxconf
+
+  redis:
+    image: redis:alpine
+
+  fcrepo:
+    image: ghcr.io/samvera/fcrepo4:4.7.5
+    ports:
+      - 8080:8080
