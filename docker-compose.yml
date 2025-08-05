@@ -30,7 +30,6 @@ services:
       - RAILS_ENV=test
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - SEED_DASSIE=true
       - SOLR_HOST=solr
       - SOLR_PORT=8983
       - SOLR_URL=http://solr:8983/solr/hydra-development
