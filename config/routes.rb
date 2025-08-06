@@ -17,6 +17,7 @@ WillowSword::Engine.routes.draw do
 
       resource :service_document, only: [:show]
       resources :collections, only: [:show]
+      resources :works, only: [:show, :create, :update]
     end
   end
 end
