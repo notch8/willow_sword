@@ -16,7 +16,7 @@ WillowSword.setup do |config|
   # The xml mapping to use when a user wnats to read a work
   config.xml_mapping_read = 'DC'
   # Authorize Sword requests using Api-key header
-  config.authorize_request = false
+  config.authorize_request = true
   # Default work model when no work model is provided
   config.default_work_model = 'GenericWork'
 end

@@ -1,15 +1,29 @@
 # This file is copied to spec/ when you run 'rails generate rspec:install'
 require 'spec_helper'
 ENV['RAILS_ENV'] ||= 'test'
-require File.expand_path("../dummy/config/environment.rb", __FILE__)
+
+def dockerized?
+  File.exist?('/app/samvera/hyrax-webapp/config/environment.rb')
+end
+
+if dockerized?
+  require '/app/samvera/hyrax-webapp/config/environment'
+else
+  require File.expand_path("../dummy/config/environment.rb", __FILE__)
+end
 # Prevent database truncation if the environment is production
 abort("The Rails environment is running in production mode!") if Rails.env.production?
 
 require 'rspec/rails'
 # Add additional requires below this line. Rails is not loaded until this point!
 # require 'rspec/autorun'
-require 'factory_girl_rails'
-# require 'database_cleaner'
+
+if dockerized?
+  require 'database_cleaner/active_record'
+  require 'factory_bot'
+  require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'users').to_s
+  require Hyrax::Engine.root.join('spec', 'support', 'fakes', 'test_hydra_group_service').to_s
+end
 
 ENGINE_RAILS_ROOT = File.join(File.dirname(__FILE__), '../')
 
@@ -30,13 +44,14 @@ ENGINE_RAILS_ROOT = File.join(File.dirname(__FILE__), '../')
 
 # [...]
 # configure shoulda matchers to use rspec as the test framework and full matcher libraries for rails
-Shoulda::Matchers.configure do |config|
-  config.integrate do |with|
-    with.test_framework :rspec
-    with.library :rails
+unless dockerized?
+  Shoulda::Matchers.configure do |config|
+    config.integrate do |with|
+      with.test_framework :rspec
+      with.library :rails
+    end
   end
 end
-
 
 
 RSpec.configure do |config|
@@ -60,9 +75,31 @@ RSpec.configure do |config|
   # arbitrary gems may also be filtered via:
   # config.filter_gems_from_backtrace("gem name")
 
+  if dockerized?
+    config.filter_run_including type: :request # only run request specs in docker
 
-  #foo
-  # [...]
-  # add `FactoryGirl` methods
-  config.include FactoryGirl::Syntax::Methods
+    config.include FactoryBot::Syntax::Methods
+    config.use_transactional_fixtures = false
+
+    config.before(:suite) do
+      DatabaseCleaner.allow_remote_database_url = true
+      DatabaseCleaner.clean_with(:truncation)
+      User.group_service = TestHydraGroupService.new
+    end
+
+    config.before(:each) do
+      DatabaseCleaner.strategy = :transaction
+      DatabaseCleaner.start
+    end
+
+    config.append_after(:each) do
+      DatabaseCleaner.clean
+    end
+  else
+    #foo
+    # [...]
+    # add `FactoryGirl` methods
+    config.include FactoryGirl::Syntax::Methods
+    config.filter_run_excluding type: :request
+  end
 end
