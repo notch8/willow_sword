@@ -16,6 +16,7 @@ WillowSword::Engine.routes.draw do
       root to: 'service_documents#show'
 
       resource :service_document, only: [:show]
+      resources :collections, only: [:show]
     end
   end
 end

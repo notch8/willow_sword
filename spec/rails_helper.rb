@@ -21,8 +21,12 @@ require 'rspec/rails'
 if dockerized?
   require 'database_cleaner/active_record'
   require 'factory_bot'
+  require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'strategies', 'valkyrie_resource').to_s
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'users').to_s
+  require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_collection').to_s
   require Hyrax::Engine.root.join('spec', 'support', 'fakes', 'test_hydra_group_service').to_s
+
+  FactoryBot.register_strategy(:valkyrie_create, ValkyrieCreateStrategy)
 end
 
 ENGINE_RAILS_ROOT = File.join(File.dirname(__FILE__), '../')
