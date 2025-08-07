@@ -21,8 +21,15 @@ require 'rspec/rails'
 if dockerized?
   require 'database_cleaner/active_record'
   require 'factory_bot'
+  require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'strategies', 'valkyrie_resource').to_s
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'users').to_s
+  require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_collection').to_s
+  require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_work').to_s
+  require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_file_set').to_s
   require Hyrax::Engine.root.join('spec', 'support', 'fakes', 'test_hydra_group_service').to_s
+  require Hyrax::Engine.root.join('spec', 'support', 'simple_work').to_s
+
+  FactoryBot.register_strategy(:valkyrie_create, ValkyrieCreateStrategy)
 end
 
 ENGINE_RAILS_ROOT = File.join(File.dirname(__FILE__), '../')
@@ -82,6 +89,7 @@ RSpec.configure do |config|
     config.use_transactional_fixtures = false
 
     config.before(:suite) do
+      WillowSword.config.xml_mapping_read = 'Hyku' # since we're primarily testing Hyku output
       DatabaseCleaner.allow_remote_database_url = true
       DatabaseCleaner.clean_with(:truncation)
       User.group_service = TestHydraGroupService.new

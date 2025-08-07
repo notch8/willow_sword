@@ -12,7 +12,13 @@ WillowSword::Engine.routes.draw do
       end
     end
 
+    namespace :v2 do
+      root to: 'service_documents#show'
+
+      resource :service_document, only: [:show]
+      resources :collections, only: [:show]
+      resources :works, only: [:show, :create, :update]
+      resources :file_sets, only: [:show, :create, :update]
+    end
   end
-
-
 end
