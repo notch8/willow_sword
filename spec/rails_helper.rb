@@ -25,6 +25,7 @@ if dockerized?
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'users').to_s
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_collection').to_s
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_work').to_s
+  require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_file_set').to_s
   require Hyrax::Engine.root.join('spec', 'support', 'fakes', 'test_hydra_group_service').to_s
   require Hyrax::Engine.root.join('spec', 'support', 'simple_work').to_s
 
