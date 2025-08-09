@@ -1,18 +1,30 @@
 # frozen_string_literal: true
 
-RSpec.describe "SWORD Service Document", type: :request do
-  describe "GET /sword/v2/service_document" do
+RSpec.describe 'SWORD Service Document', type: :request do
+  describe 'GET /sword/v2/service_document' do
     before do
       Hyrax::AdminSetCreateService.find_or_create_default_admin_set
       create(:admin, email: 'admin@example.com', api_key: 'test')
     end
 
-    it "returns 200 with valid API key" do
+    let(:doc) { Nokogiri::XML(response.body) }
+
+    it 'returns XML with no errors' do
       get '/sword/v2/service_document', headers: { 'Api-key' => 'test' }
 
-      expect(response.status).to eq(200)
-      expect(response.content_type).to include('application/xml')
-      expect(response.body).to include('<service')
+      expect(response).to have_http_status(:ok)
+      expect(doc.errors).to be_empty
+      expect(doc.root.namespaces).to eq(
+        {
+          'xmlns:atom' => 'http://www.w3.org/2005/Atom',
+          'xmlns:dcterms' => 'http://purl.org/dc/terms/',
+          'xmlns:sword' => 'http://purl.org/net/sword/terms/',
+          'xmlns:h4csys' => 'https://hykucommons.org/schema/system',
+          'xmlns' => 'http://www.w3.org/2007/app'
+        }
+      )
+      expect(doc.root.xpath('//h4csys:type', 'h4csys' => 'https://hykucommons.org/schema/system')).to be_one
+      expect(doc.xpath('//*[local-name()="collection"]').first['href']).to include('/sword/v2/collections/')
     end
   end
 end
