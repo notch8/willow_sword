@@ -102,6 +102,7 @@ RSpec.configure do |config|
 
     config.append_after(:each) do
       DatabaseCleaner.clean
+      Valkyrie::IndexingAdapter.find(:solr_index).wipe!
     end
   else
     #foo
