@@ -4,7 +4,7 @@ xml.service('xmlns:atom':"http://www.w3.org/2005/Atom", 'xmlns:dcterms':"http://
   xml.workspace({collections: @collections.count}) do
     xml.atom :title, WillowSword.config.title
     @collections.each do |collection|
-      xml.collection(href: collection_url(collection.id)) do
+      xml.collection(href: v2_collection_url(collection.id)) do
         xml.atom :title, Array.wrap(collection.title).join(", ")
         xml.h4csys :type, collection['has_model_ssim'].first
         xml.accept "*/*"
