@@ -90,6 +90,7 @@ RSpec.configure do |config|
 
     config.before(:suite) do
       WillowSword.config.xml_mapping_read = 'Hyku' # since we're primarily testing Hyku output
+      WillowSword.config.xml_mapping_create = 'Hyku'
       WillowSword.config.work_models = ['GenericWork', 'Monograph']
       DatabaseCleaner.allow_remote_database_url = true
       DatabaseCleaner.clean_with(:truncation)

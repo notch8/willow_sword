@@ -22,7 +22,7 @@ module WillowSword
     private
 
       def set_visibility
-        @attributes[:visibility]&.strip!
+        @attributes[:visibility] = Array.wrap(@attributes[:visibility]).first&.strip
         return @attributes[:visibility] = 'restricted' if @attributes[:visibility].blank?
 
         case @attributes[:visibility]

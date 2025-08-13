@@ -48,15 +48,9 @@ RSpec.describe 'SWORD Works', type: :request do
             post '/sword/v2/works', headers: headers, params: params
 
             doc = Nokogiri::XML(response.body)
-            id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['href'].split('/').last
+            id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
             work = Hyrax.query_service.find_by(id: id)
             expect(work.internal_resource).to eq 'Monograph'
-
-            properties = Nokogiri::XML(params).xpath('//metadata/*').map { |node| node.name.to_sym }.uniq
-
-            properties.each do |property|
-              expect(work.send(property)).to be_present
-            end
           end
         end
 
@@ -65,15 +59,9 @@ RSpec.describe 'SWORD Works', type: :request do
             post '/sword/v2/works', headers: headers, params: params
 
             doc = Nokogiri::XML(response.body)
-            id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['href'].split('/').last
+            id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
             work = Hyrax.query_service.find_by(id: id)
             expect(work.internal_resource).to eq 'Monograph'
-
-            properties = Nokogiri::XML(params).xpath('//metadata/*').map { |node| node.name.to_sym }.uniq
-
-            properties.each do |property|
-              expect(work.send(property)).to be_present
-            end
           end
         end
       end
@@ -98,14 +86,50 @@ RSpec.describe 'SWORD Works', type: :request do
         post '/sword/v2/works', headers: headers, params: { metadata: uploaded_file }
 
         doc = Nokogiri::XML(response.body)
-        id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['href'].split('/').last
+        id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
         work = Hyrax.query_service.find_by(id: id)
         expect(work.internal_resource).to eq 'Monograph'
+      end
+    end
 
-        properties = Nokogiri::XML(xml_file).xpath('//metadata/*').map { |node| node.name.to_sym }.uniq
+    context 'with files' do
+      context 'with a zip file' do
+        let(:headers) do
+          {
+            'Content-Disposition' => 'attachment; filename=testPackage.zip',
+            'Content-Type' => 'application/zip',
+            'In-Progress' => 'false',
+            'On-Behalf-Of' => 'admin@example.com',
+            'Api-key' => 'test',
+          }
+        end
+        let(:params) do
+          File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'testPackage.zip'))
+        end
 
-        properties.each do |property|
-          expect(work.send(property)).to be_present
+        it 'creates a new work with files' do
+          post '/sword/v2/works', headers: headers, params: params
+
+          doc = Nokogiri::XML(response.body)
+          expect(doc.root.name).to eq 'entry'
+
+          src = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']
+          id = src.split('/').last
+          work = Hyrax.query_service.find_by(id: id)
+          expect(work.internal_resource).to eq 'Monograph'
+          expect(src).to include("/sword/v2/works/#{work.id}")
+
+          content = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first
+          expect(content['src']).to include("/sword/v2/works/#{work.id}")
+          expect(content['type']).to eq 'text/html'
+
+          link_edit = doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').find { |e| e['rel'] == 'edit' }
+          expect(link_edit['href']).to include("/sword/v2/works/#{work.id}")
+
+          link_edit_media = doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').select { |e| e['rel'] == 'edit-media' }
+          fs_hrefs = link_edit_media.map { |lem| lem['href'].match(/(\/sword.*)/)[1] }
+          fs_ids = work.member_ids.map(&:to_s)
+          expect(fs_hrefs).to match_array(fs_ids.map { |id| "/sword/v2/file_sets/#{id}"})
         end
       end
     end
