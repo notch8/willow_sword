@@ -23,6 +23,8 @@ RSpec.describe 'SWORD Works', type: :request do
       valkyrie_create(:hyrax_collection, id: 'collection-2', title: ['Collection Two'])
     end
 
+    let!(:admin_set_id) { valkyrie_create(:default_hyrax_admin_set).id.to_s }
+
     context 'with metadata only' do
       context 'with binary data method' do
         let(:headers) do
@@ -45,7 +47,7 @@ RSpec.describe 'SWORD Works', type: :request do
             params = File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'metadata.xml'))
                         .gsub("<internal_resource>Monograph</internal_resource>\n  ", '')
 
-            post '/sword/v2/works', headers: headers, params: params
+            post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
 
             doc = Nokogiri::XML(response.body)
             id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
@@ -56,7 +58,7 @@ RSpec.describe 'SWORD Works', type: :request do
 
         context 'with internal_resource set' do
           it 'creates a new work' do
-            post '/sword/v2/works', headers: headers, params: params
+            post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
 
             doc = Nokogiri::XML(response.body)
             id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
@@ -83,7 +85,7 @@ RSpec.describe 'SWORD Works', type: :request do
       end
 
       it 'creates a new work' do
-        post '/sword/v2/works', headers: headers, params: { metadata: uploaded_file }
+        post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: { metadata: uploaded_file }
 
         doc = Nokogiri::XML(response.body)
         id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
@@ -108,7 +110,7 @@ RSpec.describe 'SWORD Works', type: :request do
         end
 
         it 'creates a new work with files' do
-          post '/sword/v2/works', headers: headers, params: params
+          post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
 
           doc = Nokogiri::XML(response.body)
           expect(doc.root.name).to eq 'entry'
@@ -130,6 +132,41 @@ RSpec.describe 'SWORD Works', type: :request do
           fs_hrefs = link_edit_media.map { |lem| lem['href'].match(/(\/sword.*)/)[1] }
           fs_ids = work.member_ids.map(&:to_s)
           expect(fs_hrefs).to match_array(fs_ids.map { |id| "/sword/v2/file_sets/#{id}"})
+        end
+
+        context 'with a non-default admin set in params' do
+          let!(:admin_set_id) { valkyrie_create(:hyrax_admin_set, id: 'custom_admin_set', title: ['Custom Admin Set']).id.to_s }
+
+          it 'creates a new work with files in the admin set from the params' do
+            post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
+
+            doc = Nokogiri::XML(response.body)
+
+            expect(doc.root.xpath('h4cmeta:admin_set_id', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'custom_admin_set'
+          end
+        end
+
+        context 'a mismatched admin set in params and metadata' do
+          let(:zip_file) do
+            WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'testPackageWithAdminSetId.zip')
+          end
+          let(:params) { File.read(zip_file) }
+          let(:xml_file) do
+            Zip::File.open(zip_file) do |zip|
+              entry = zip.find_entry('metadata/metadata.xml')
+              entry.get_input_stream.read
+            end
+          end
+          let(:default_admin_set_id) { Hyrax.config.default_admin_set_id }
+
+          before { valkyrie_create(:hyrax_admin_set, id: 'custom_admin_set', title: ['Custom Admin Set']) }
+
+          it 'overrides the admin set from the params' do
+            post "/sword/v2/collections/#{default_admin_set_id}/works", headers: headers, params: params
+
+            doc = Nokogiri::XML(response.body)
+            expect(doc.root.xpath('h4cmeta:admin_set_id', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'custom_admin_set'
+          end
         end
       end
     end

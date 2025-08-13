@@ -4,7 +4,7 @@ xml.feed(xw.namespace_declarations) do
   # Get work
   xml.content(rel:"src", href: v2_work_url(@object))
   # Add file to work
-  xml.link(rel:"edit", href: v2_file_sets_url(@object))
+  xml.link(rel:"edit", href: v2_file_set_url(@object))
   @file_set_ids.each do |file_set_id|
     xml.entry do
       # Get file metadata

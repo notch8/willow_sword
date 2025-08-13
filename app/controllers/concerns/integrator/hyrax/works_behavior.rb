@@ -215,7 +215,7 @@ module Integrator
         end
 
         def extract_admin_set_id
-          id = URI(request.url).path.split('collections/').last.split('/').first
+          id = @attributes[:admin_set_id]&.first || URI(request.url).path.split('collections/').last.split('/').first
 
           admin_set =
             begin

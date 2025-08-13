@@ -6,8 +6,8 @@ if WillowSword.config.xml_mapping_read == 'Hyku'
   xml.feed(xw.namespace_declarations) do
     xml.title @file_set.title.join(", ")
 
-    xml.content(rel:"src", href:v2_file_sets_url(params[:collection_id], params[:work_id], @file_set))
-    xml.link(rel:"edit", href:v2_file_sets_url(params[:collection_id], params[:work_id], @file_set))
+    xml.content(rel:"src", href:v2_file_set_url(@file_set))
+    xml.link(rel:"edit", href:v2_file_set_url(@file_set))
 
     # Add h4csys, mainly system generated metadata
     xw.system_terms.each do |term|
@@ -50,8 +50,8 @@ else
     Array(@file_set.title).each do |t|
       xml.title t
     end
-    xml.content(rel:"src", href:v2_file_sets_url(params[:collection_id], params[:work_id], @file_set))
-    xml.link(rel:"edit", href:v2_file_sets_url(params[:collection_id], params[:work_id], @file_set))
+    xml.content(rel:"src", href:v2_file_set_url(@file_set))
+    xml.link(rel:"edit", href:v2_file_set_url(@file_set))
 
     # Add dc metadata
     xw = WillowSword::DcCrosswalk.new(nil, @work_klass)
