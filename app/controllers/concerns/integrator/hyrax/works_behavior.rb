@@ -111,16 +111,33 @@ module Integrator
           work_models.transform_keys!{ |k| k.underscore.gsub('_', ' ').gsub('-', ' ').downcase }
           # Match with header first, then resource type and finally pick one from list
           hyrax_work_model = @headers.fetch(:hyrax_work_model, nil)
-          if hyrax_work_model and work_models.include?(hyrax_work_model)
-            # Read the class from the header and prioritize the Valkyrie resource
-            @work_klass = "#{work_models[hyrax_work_model]}Resource".safe_constantize || work_models[hyrax_work_model].constantize
-          elsif @resource_type and work_models.include?(@resource_type)
-            # Set the class based on the resource type
-            @work_klass = work_models[@resource_type].constantize
-          else
-            # Fallback to default work model
-            @work_klass = WillowSword.config.default_work_model
-          end
+
+          # the metadata file's `internal_resource` will override all other methods of setting the work class
+          @work_klass = find_work_klass_from_metadata(@metadata_file) if @metadata_file && File.exist?(@metadata_file)
+
+          return if @work_klass.present?
+
+          # otherwise, set it from the header or resource type
+          @work_klass =
+            if hyrax_work_model && work_models.include?(hyrax_work_model)
+              # Read the class from the header and prioritize the Valkyrie resource
+              "#{work_models[hyrax_work_model]}Resource".safe_constantize || work_models[hyrax_work_model].constantize
+            elsif @resource_type && work_models.include?(@resource_type)
+              # Set the class based on the resource type
+              work_models[@resource_type].constantize
+            else
+              # Fallback to default work model
+              WillowSword.config.default_work_model
+            end
+        end
+
+        def find_work_klass_from_metadata(file_path)
+          doc = File.open(file_path) { |f| Nokogiri::XML(f) }
+          work_klass = doc.root.xpath('//internal_resource').text
+          return nil if work_klass.blank?
+          return nil unless ::Hyrax.config.registered_curation_concern_types.include?(work_klass)
+
+          "#{work_klass}Resource".safe_constantize || work_klass.constantize
         end
 
         # models that have been lazyily migrated with the <work>Resource convention
@@ -199,7 +216,7 @@ module Integrator
         end
 
         def extract_admin_set_id
-          id = URI(request.url).path.split('collections/').last.split('/').first
+          id = @attributes[:admin_set_id]&.first || URI(request.url).path.split('collections/').last.split('/').first
 
           admin_set =
             begin

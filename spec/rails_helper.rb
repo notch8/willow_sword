@@ -23,6 +23,7 @@ if dockerized?
   require 'factory_bot'
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'strategies', 'valkyrie_resource').to_s
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'users').to_s
+  require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'administrative_sets').to_s
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_collection').to_s
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_work').to_s
   require Hyrax::Engine.root.join('lib', 'hyrax', 'specs', 'shared_specs', 'factories', 'hyrax_file_set').to_s
@@ -90,6 +91,8 @@ RSpec.configure do |config|
 
     config.before(:suite) do
       WillowSword.config.xml_mapping_read = 'Hyku' # since we're primarily testing Hyku output
+      WillowSword.config.xml_mapping_create = 'Hyku'
+      WillowSword.config.work_models = ['GenericWork', 'Monograph']
       DatabaseCleaner.allow_remote_database_url = true
       DatabaseCleaner.clean_with(:truncation)
       User.group_service = TestHydraGroupService.new
