@@ -16,7 +16,7 @@ RSpec.describe 'SWORD Works', type: :request do
     end
   end
 
-  describe 'POST /sword/v2/works' do
+  describe 'POST /sword/v2/collections/:id/works' do
     before do
       create(:admin, email: 'admin@example.com', api_key: 'test')
       valkyrie_create(:hyrax_collection, id: 'collection-1', title: ['Collection One'])
@@ -42,10 +42,13 @@ RSpec.describe 'SWORD Works', type: :request do
         end
 
         context 'with Hyrax-Work-Model header' do
+          let(:params) do
+            File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'metadata.xml'))
+                .gsub("<internal_resource>Monograph</internal_resource>\n  ", '')
+          end
+
           it 'creates a new work' do
             headers['Hyrax-Work-Model'] = 'Monograph'
-            params = File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'metadata.xml'))
-                        .gsub("<internal_resource>Monograph</internal_resource>\n  ", '')
 
             post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
 

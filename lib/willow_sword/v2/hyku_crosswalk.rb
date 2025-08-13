@@ -122,18 +122,18 @@ module WillowSword
       def map_xml
         return @metadata unless @src_file.present?
         return @metadata unless File.exist? @src_file
-        f = File.open(@src_file)
-        doc = Nokogiri::XML(f)
-        doc.remove_namespaces!
-        @terms.each do |term|
-          values = []
-          doc.xpath("//#{term}").each do |t|
-            values << t.text if t.text.present?
+        File.open(@src_file) do |f|
+          doc = Nokogiri::XML(f)
+          doc.remove_namespaces!
+          @terms.each do |term|
+            values = []
+            doc.xpath("//#{term}").each do |t|
+              values << t.text if t.text.present?
+            end
+            key = term_translation_mappings.include?(term) ? term_translation_mappings[term] : term
+            @metadata[key.to_sym] = Array.wrap(values) unless values.blank?
           end
-          key = term_translation_mappings.include?(term) ? term_translation_mappings[term] : term
-          @metadata[key.to_sym] = Array.wrap(values) unless values.blank?
         end
-        f.close
       end
 
       private

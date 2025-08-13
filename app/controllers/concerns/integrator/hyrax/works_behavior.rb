@@ -132,9 +132,10 @@ module Integrator
         end
 
         def find_work_klass_from_metadata(file_path)
-          doc = Nokogiri::XML(File.read(file_path))
+          doc = File.open(file_path) { |f| Nokogiri::XML(f) }
           work_klass = doc.root.xpath('//internal_resource').text
           return nil if work_klass.blank?
+          return nil unless ::Hyrax.config.registered_curation_concern_types.include?(work_klass)
 
           "#{work_klass}Resource".safe_constantize || work_klass.constantize
         end
