@@ -14,7 +14,6 @@ module Integrator
       end
 
       def create_file_set
-        @file_set = FileSet.create
         @current_user = User.batch_user unless @current_user.present?
         # Add file
         f = if @files.any?
@@ -25,9 +24,21 @@ module Integrator
         perform_transaction_for(object: @object, attrs: {}) do
           transactions["change_set.update_work"]
             .with_step_args(
-              'work_resource.add_file_sets' => { uploaded_files: f }
+              'work_resource.add_file_sets' => {
+                uploaded_files: f, file_set_params: [(@attributes || {}).merge(f.first ? { uploaded_file_id: f.first.id.to_s } : {})]
+              }
             )
         end
+
+        file_set_id = f.first&.file_set_uri
+        @file_set =
+          if file_set_id
+            begin
+              ::Hyrax.query_service.find_by(id: file_set_id)
+            rescue Valkyrie::Persistence::ObjectNotFoundError
+              nil
+            end
+          end
       end
 
       def update_file_set
