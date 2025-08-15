@@ -10,7 +10,7 @@ module WillowSword
           perform_create
           @file_set_ids = file_set_ids
           if (WillowSword.config.xml_mapping_create == 'Hyku')
-            render 'create.hyku.xml.builder', formats: [:xml], status: :created, location: v2_work_url(@object.id)
+            render 'entry.hyku.xml.builder', formats: [:xml], status: :created, location: v2_work_url(@object.id)
           else
             render 'create.xml.builder', formats: [:xml], status: :created, location: v2_work_url(@object.id)
           end
@@ -30,7 +30,7 @@ module WillowSword
           @mods = assign_model_to_mods
           render '/willow_sword/v2/works/show.mods.xml.builder', formats: [:xml], status: 200
         elsif (WillowSword.config.xml_mapping_read == 'Hyku')
-          render '/willow_sword/v2/works/show.hyku.xml.builder', formats: [:xml], status: 200
+          render '/willow_sword/v2/works/entry.hyku.xml.builder', formats: [:xml], status: 200
         else
           render '/willow_sword/v2/works/show.dc.xml.builder', formats: [:xml], status: 200
         end
@@ -44,7 +44,7 @@ module WillowSword
         begin
           perform_update
           if (WillowSword.config.xml_mapping_create == 'Hyku')
-            render 'create.hyku.xml.builder', formats: [:xml], status: :ok
+            render 'entry.hyku.xml.builder', formats: [:xml], status: :ok
           else
             render 'update.xml.builder', formats: [:xml], status: :ok
           end
