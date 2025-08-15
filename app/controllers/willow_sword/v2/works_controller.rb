@@ -9,11 +9,9 @@ module WillowSword
         begin
           perform_create
           @file_set_ids = file_set_ids
-          if (WillowSword.config.xml_mapping_create == 'Hyku')
-            render 'entry.hyku.xml.builder', formats: [:xml], status: :created, location: v2_work_url(@object.id)
-          else
-            render 'create.xml.builder', formats: [:xml], status: :created, location: v2_work_url(@object.id)
-          end
+
+          xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
+          render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :created, location: v2_work_url(@object.id)
         rescue StandardError => e
           @error = WillowSword::Error.new(e.message) unless @error.present?
           render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
@@ -21,19 +19,12 @@ module WillowSword
       end
 
       def show
-        # @collection_id = params[:collection_id]
         find_work_by_query
         render_not_found and return unless @object
         @file_set_ids = file_set_ids
 
-        if (WillowSword.config.xml_mapping_read == 'MODS')
-          @mods = assign_model_to_mods
-          render '/willow_sword/v2/works/show.mods.xml.builder', formats: [:xml], status: 200
-        elsif (WillowSword.config.xml_mapping_read == 'Hyku')
-          render '/willow_sword/v2/works/entry.hyku.xml.builder', formats: [:xml], status: 200
-        else
-          render '/willow_sword/v2/works/show.dc.xml.builder', formats: [:xml], status: 200
-        end
+        xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
+        render '/willow_sword/v2/works/entry.hyku.xml.builder', locals: { xw: xw }, status: 200
       end
 
       def update
@@ -43,11 +34,9 @@ module WillowSword
 
         begin
           perform_update
-          if (WillowSword.config.xml_mapping_create == 'Hyku')
-            render 'entry.hyku.xml.builder', formats: [:xml], status: :ok
-          else
-            render 'update.xml.builder', formats: [:xml], status: :ok
-          end
+
+          xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
+          render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :ok
         rescue StandardError => e
           @error = WillowSword::Error.new(e.message) unless @error.present?
           render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
@@ -55,10 +44,6 @@ module WillowSword
       end
 
       def extract_metadata(file_path)
-        @attributes = nil
-
-        return super unless WillowSword.config.xml_mapping_create == 'Hyku'
-
         xw = WillowSword::V2::HykuCrosswalk.new(file_path, @work_klass)
         xw.map_xml
         @attributes = xw.metadata

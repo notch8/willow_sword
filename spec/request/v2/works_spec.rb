@@ -7,14 +7,17 @@ RSpec.describe 'SWORD Works', type: :request do
 
   describe 'GET /sword/v2/works/:id' do
     before do
-      valkyrie_create(:monograph, id: 1, title: ['Test Work'], description: ['A test work'])
+      valkyrie_create(:monograph, id: 'work-123', title: ['Test Work'], description: ['A test work'])
     end
 
     it 'returns 200 with valid API key' do
-      get '/sword/v2/works/1', headers: { 'Api-key' => 'test' }
+      get '/sword/v2/works/work-123', headers: { 'Api-key' => 'test' }
 
       doc = Nokogiri::XML(response.body)
       expect(doc.root.name).to eq('entry')
+      expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('work-123')
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with('/sword/v2/works/work-123')
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
     end
   end
 
@@ -56,7 +59,11 @@ RSpec.describe 'SWORD Works', type: :request do
             doc = Nokogiri::XML(response.body)
             expect(doc.root.name).to eq('entry')
 
-            id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
+            id = doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
+            expect(id).to be_present
+            expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/sword/v2/works/#{id}")
+            expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
+
             work = Hyrax.query_service.find_by(id: id)
             expect(work.internal_resource).to eq 'Monograph'
           end
@@ -203,6 +210,8 @@ RSpec.describe 'SWORD Works', type: :request do
 
       expect(doc.root.name).to eq('entry')
       expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq(work.id.to_s)
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/sword/v2/works/#{work.id.to_s}")
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
       expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated Work Title')
     end
   end
