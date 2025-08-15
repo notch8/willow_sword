@@ -1,18 +1,18 @@
 module WillowSword
   module V2
     class HykuCrosswalk
-      attr_reader :terms, :work, :work_klass, :metadata, :model
+      attr_reader :terms, :object, :object_klass, :metadata, :model
 
-      def initialize(src_file, work)
+      def initialize(src_file, object)
         @src_file = src_file
         @metadata = {}
-        @work = work if work.respond_to?(:id) # can be an instance or a class, we want the instance
-        @work_klass = work.respond_to?(:id) ? work.class : work # ensure we have the class
-        @terms = terms + visibility_terms if @work_klass.present?
-        @model = @work_klass
+        @object = object if object.respond_to?(:id) # can be an instance or a class, we want the instance
+        @object_klass = object.respond_to?(:id) ? object.class : object # ensure we have the class
+        @terms = terms + visibility_terms if @object_klass.present?
+        @model = @object_klass
       end
 
-      # @returns [Hash] a hash of namespace declarations used in the work
+      # @returns [Hash] a hash of namespace declarations used in the object
       def namespace_declarations
         default_namespace.merge(namespaces.transform_keys { |key| "xmlns:#{key}" })
       end
@@ -30,7 +30,7 @@ module WillowSword
         }
       end
 
-      # @param term [String] the term (work's property) to look up the namespace prefix for or the prefix itself
+      # @param term [String] the term (object's property) to look up the namespace prefix for or the prefix itself
       # @returns [String] the namespace prefix for the given term
       def prefix_lookup_for(term)
         return term if namespaces.key?(term)
@@ -40,10 +40,10 @@ module WillowSword
         namespaces.key(ns) || prefix_lookup_for('h4cmeta')
       end
 
-      # @returns [Array<String>] a list of terms used in the work to be included in the crosswalk
+      # @returns [Array<String>] a list of terms used in the object to be included in the crosswalk
       def terms
-        work_terms = work.respond_to?(:id) ? terms_from_work : terms_from_schema
-        work_terms - system_terms
+        object_terms = object.respond_to?(:id) ? terms_from_object : terms_from_schema
+        object_terms - system_terms
       end
 
       # @returns [Array<String>] a list of auto generated system terms
@@ -53,14 +53,14 @@ module WillowSword
           date_uploaded depositor state).select { |term| terms_from_schema.include?(term) }
       end
 
-      # @returns [Array<String>] a list of Dublin Core terms used in the work
+      # @returns [Array<String>] a list of Dublin Core terms used in the object
       def dc_terms
         (terms + system_terms).uniq.select do |term|
           prefix_lookup_for(term) == 'dc' || prefix_lookup_for(term) == 'dcterms' || dc_terms_to_fallback_to_dc.include?(term)
         end
       end
 
-      # @returns [Hash] a hash of term translations for the work's schema
+      # @returns [Hash] a hash of term translations for the object's schema
       def term_translation_mappings
         {
           'date_modified'          => 'modified',
@@ -111,12 +111,12 @@ module WillowSword
       #
       # The `dc` version ensures backward compatibility.
       #
-      # @return [Array<String>] An array of Hyrax/Hyku terms that the work responds to
+      # @return [Array<String>] An array of Hyrax/Hyku terms that the object responds to
       #   that should be mapped to `dc` even if it's considered `dcterms` by Hyrax/Hyku.
       def dc_terms_to_fallback_to_dc
         %w(contributor coverage creator date_created description format
           identifier language publisher related_item_id rights_holder source
-          rights_notes rights_statement subject title resource_type).select { |term| work.respond_to?(term) }
+          rights_notes rights_statement subject title resource_type).select { |term| object.respond_to?(term) }
       end
 
       def map_xml
@@ -136,33 +136,69 @@ module WillowSword
         end
       end
 
+      def add_metadata_to_xml(xml)
+        # Add h4csys, mainly system generated metadata
+        system_terms.each do |term|
+          Array.wrap(@object.send(term)).each do |val|
+            val = val.to_s
+            next if val.blank?
+
+            prefix = prefix_lookup_for('h4csys')
+            xml.tag!(:"#{prefix}:#{term}", val)
+          end
+        end
+
+        # Add h4cmeta, settable metadata
+        terms.each do |term|
+          Array.wrap(@object.send(term)).each do |val|
+            val = val.to_s
+            next if val.blank?
+
+            prefix = prefix_lookup_for('h4cmeta')
+            xml.tag!(:"#{prefix}:#{term}", val)
+          end
+        end
+
+        # Add dc and dcterms
+        dc_terms.each do |term|
+          Array.wrap(@object.send(term)).each do |val|
+            val = val.to_s
+            next if val.blank?
+
+            prefix = dc_terms_to_fallback_to_dc.include?(term) ? 'dc' : prefix_lookup_for(term)
+            translated_term = term_translation_mappings[term] || term
+            xml.tag!(:"#{prefix}:#{translated_term}", val)
+          end
+        end
+      end
+
       private
 
-      # Takes the work's schema and returns a hash of predicate mappings for terms
+      # Takes the object's schema and returns a hash of predicate mappings for terms
       #   that are included in the crosswalk
       # @example
       #   { "title" => "http://purl.org/dc/terms/title",
       #     "date_modified" => "http://purl.org/dc/terms/modified",
       #     "date_uploaded" => "http://purl.org/dc/terms/dateSubmitted" }
-      # @returns [Hash] a hash of predicate mappings for the work's schema
+      # @returns [Hash] a hash of predicate mappings for the object's schema
       def predicate_mappings
-        work_klass
+        object_klass
           .schema
           .keys
-          .select { |field| field.meta && field.meta['predicate'] && terms_from_work.include?(field.name.to_s) }
+          .select { |field| field.meta && field.meta['predicate'] && terms_from_object.include?(field.name.to_s) }
           .each_with_object({}) { |field_name, hash| hash[field_name.name] = field_name.meta['predicate'] }
           .stringify_keys
       end
 
-      # Looks up all the terms from the work's schema
-      # @returns [Array<String>] a list of terms from the work's schema
+      # Looks up all the terms from the object's schema
+      # @returns [Array<String>] a list of terms from the object's schema
       def terms_from_schema
-        work_klass.schema.keys.map { |field| field.name.to_s }
+        object_klass.schema.keys.map { |field| field.name.to_s }
       end
 
-      # @returns [Array<String>] a list of terms used in the work to be included in the crosswalk
-      def terms_from_work
-        (terms_from_schema + visibility_terms).reject { |term| work.send(term).to_s.blank? }
+      # @returns [Array<String>] a list of terms used in the object to be included in the crosswalk
+      def terms_from_object
+        (terms_from_schema + visibility_terms).reject { |term| object.send(term).to_s.blank? }
       end
 
       # @returns [Array<String>] a list of Hyrax based visibility terms
