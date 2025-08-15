@@ -9,7 +9,7 @@ module Integrator
 
       def find_file_set_by_id
         ::Hyrax.query_service.find_by(id: params[:id])
-      rescue ActiveFedora::ActiveFedoraError
+      rescue Valkyrie::Persistence::ObjectNotFoundError, ActiveFedora::ActiveFedoraError
         nil
       end
 
