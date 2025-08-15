@@ -1,4 +1,3 @@
-xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
 xml.entry(xw.namespace_declarations) do
   xml.id @object.id
   xml.title @object.title.join(', ')
