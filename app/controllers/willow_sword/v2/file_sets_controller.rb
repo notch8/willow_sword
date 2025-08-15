@@ -16,6 +16,22 @@ module WillowSword
         end
       end
 
+      def update
+        @file_set = find_file_set
+        render_file_set_not_found and return unless @file_set
+
+        if perform_update
+          if WillowSword.config.xml_mapping_create == 'Hyku'
+            render 'create.hyku.xml.builder', formats: [:xml], status: :ok
+          else
+            render 'update.xml.builder', formats: [:xml], status: :ok
+          end
+        else
+          @error = WillowSword::Error.new("Error updating file set") unless @error.present?
+          render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+        end
+      end
+
       def extract_metadata(file_path)
         @attributes = {}
 

@@ -36,6 +36,24 @@ module WillowSword
         end
       end
 
+      def update
+        find_work_by_query
+        render_not_found and return unless @object
+        @error = nil
+
+        begin
+          perform_update
+          if (WillowSword.config.xml_mapping_create == 'Hyku')
+            render 'create.hyku.xml.builder', formats: [:xml], status: :ok
+          else
+            render 'update.xml.builder', formats: [:xml], status: :ok
+          end
+        rescue StandardError => e
+          @error = WillowSword::Error.new(e.message) unless @error.present?
+          render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+        end
+      end
+
       def extract_metadata(file_path)
         @attributes = nil
 

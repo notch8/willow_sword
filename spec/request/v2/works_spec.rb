@@ -1,24 +1,25 @@
 # frozen_string_literal: true
 
 RSpec.describe 'SWORD Works', type: :request do
+  before do
+    create(:admin, email: 'admin@example.com', api_key: 'test')
+  end
+
   describe 'GET /sword/v2/works/:id' do
     before do
-      create(:admin, email: 'admin@example.com', api_key: 'test')
       valkyrie_create(:monograph, id: 1, title: ['Test Work'], description: ['A test work'])
     end
 
     it 'returns 200 with valid API key' do
       get '/sword/v2/works/1', headers: { 'Api-key' => 'test' }
 
-      expect(response.status).to eq(200)
-      expect(response.content_type).to include('application/xml')
-      expect(response.body).to include('<feed')
+      doc = Nokogiri::XML(response.body)
+      expect(doc.root.name).to eq('entry')
     end
   end
 
   describe 'POST /sword/v2/collections/:id/works' do
     before do
-      create(:admin, email: 'admin@example.com', api_key: 'test')
       valkyrie_create(:hyrax_collection, id: 'collection-1', title: ['Collection One'])
       valkyrie_create(:hyrax_collection, id: 'collection-2', title: ['Collection Two'])
     end
@@ -53,6 +54,8 @@ RSpec.describe 'SWORD Works', type: :request do
             post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
 
             doc = Nokogiri::XML(response.body)
+            expect(doc.root.name).to eq('entry')
+
             id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
             work = Hyrax.query_service.find_by(id: id)
             expect(work.internal_resource).to eq 'Monograph'
@@ -172,6 +175,35 @@ RSpec.describe 'SWORD Works', type: :request do
           end
         end
       end
+    end
+  end
+
+  describe 'PUT /sword/v2/works/:id' do
+    let(:work) { valkyrie_create(:hyrax_work, title: ['Original Title']) }
+    let(:headers) do
+      {
+        'Content-Type' => 'application/xml',
+        'In-Progress' => 'false',
+        'On-Behalf-Of' => 'admin@example.com',
+        'Api-key' => 'test',
+      }
+    end
+    let(:params) do
+      <<~XML
+        <metadata xmlns="http://www.w3.org/2005/Atom">
+          <title>Updated Work Title</title>
+        </metadata>
+      XML
+    end
+
+    it 'updates the work' do
+      put "/sword/v2/works/#{work.id}", headers: headers, params: params
+
+      doc = Nokogiri::XML(response.body)
+
+      expect(doc.root.name).to eq('entry')
+      expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq(work.id.to_s)
+      expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated Work Title')
     end
   end
 end
