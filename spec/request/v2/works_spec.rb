@@ -7,17 +7,36 @@ RSpec.describe 'SWORD Works', type: :request do
 
   describe 'GET /sword/v2/works/:id' do
     before do
-      valkyrie_create(:monograph, id: 'work-123', title: ['Test Work'], description: ['A test work'])
+      valkyrie_create(:monograph, id: 'child-work-123', title: ['Child Work'], description: ['A child work'])
+      parent_work = valkyrie_create(:monograph, :with_one_file_set, id: 'work-123', title: ['Test Work'], description: ['A test work'])
+      parent_work.member_ids << 'child-work-123'
+      Hyrax.persister.save(resource: parent_work)
+      Hyrax.index_adapter.save(resource: parent_work)
     end
 
     it 'returns 200 with valid API key' do
       get '/sword/v2/works/work-123', headers: { 'Api-key' => 'test' }
 
       doc = Nokogiri::XML(response.body)
+
       expect(doc.root.name).to eq('entry')
       expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('work-123')
-      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with('/sword/v2/works/work-123')
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with('/concern/monographs/work-123')
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
+
+      work_link_element = doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').find { |e| e['href'].include?('works') }
+      expect(work_link_element['href']).to end_with("/sword/v2/works/work-123")
+
+      member_ids = Hyrax.query_service.find_by(id: 'work-123').member_ids
+      members = Hyrax.query_service.find_many_by_ids(ids: member_ids)
+      fs = members.find { |m| m.is_a?(Hyrax::FileSet) }
+      fs_link_element = doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').find { |e| e['href'].include?('file_sets') }
+      expect(fs_link_element['href']).to end_with("/sword/v2/file_sets/#{fs.id}")
+      expect(fs_link_element['rel']).to eq('edit-media')
+
+      child_work_link_element = doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').find { |e| e['href'].include?('child-work-123') }
+      expect(child_work_link_element['href']).to end_with("/sword/v2/works/child-work-123")
+      expect(child_work_link_element['rel']).to eq('related')
     end
   end
 
@@ -61,7 +80,7 @@ RSpec.describe 'SWORD Works', type: :request do
 
             id = doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
             expect(id).to be_present
-            expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/sword/v2/works/#{id}")
+            expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/concern/monographs/#{id}")
             expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
 
             work = Hyrax.query_service.find_by(id: id)
@@ -74,7 +93,7 @@ RSpec.describe 'SWORD Works', type: :request do
             post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
 
             doc = Nokogiri::XML(response.body)
-            id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
+            id = doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
             work = Hyrax.query_service.find_by(id: id)
             expect(work.internal_resource).to eq 'Monograph'
           end
@@ -101,7 +120,7 @@ RSpec.describe 'SWORD Works', type: :request do
         post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: { metadata: uploaded_file }
 
         doc = Nokogiri::XML(response.body)
-        id = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src'].split('/').last
+        id = doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
         work = Hyrax.query_service.find_by(id: id)
         expect(work.internal_resource).to eq 'Monograph'
       end
@@ -128,15 +147,11 @@ RSpec.describe 'SWORD Works', type: :request do
           doc = Nokogiri::XML(response.body)
           expect(doc.root.name).to eq 'entry'
 
-          src = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']
-          id = src.split('/').last
+          id = doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
           work = Hyrax.query_service.find_by(id: id)
           expect(work.internal_resource).to eq 'Monograph'
-          expect(src).to include("/sword/v2/works/#{work.id}")
-
-          content = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first
-          expect(content['src']).to include("/sword/v2/works/#{work.id}")
-          expect(content['type']).to eq 'text/html'
+          expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to include("/concern/monographs/#{work.id}")
+          expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq 'text/html'
 
           link_edit = doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').find { |e| e['rel'] == 'edit' }
           expect(link_edit['href']).to include("/sword/v2/works/#{work.id}")
@@ -186,7 +201,7 @@ RSpec.describe 'SWORD Works', type: :request do
   end
 
   describe 'PUT /sword/v2/works/:id' do
-    let(:work) { valkyrie_create(:hyrax_work, title: ['Original Title']) }
+    let(:work) { valkyrie_create(:monograph, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
     let(:headers) do
       {
         'Content-Type' => 'application/xml',
@@ -210,9 +225,29 @@ RSpec.describe 'SWORD Works', type: :request do
 
       expect(doc.root.name).to eq('entry')
       expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq(work.id.to_s)
-      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/sword/v2/works/#{work.id.to_s}")
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/concern/monographs/#{work.id.to_s}")
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
       expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated Work Title')
+    end
+
+    context 'when updating the member_ids' do
+      let!(:work) { valkyrie_create(:monograph, title: ['Original Title'], creator: ['somebody'], member_ids: ['old-member-id'], record_info: ['some info']) }
+      let!(:new_child_work) { valkyrie_create(:monograph, id: 'new-child-work-id', title: ['Child Work'], creator: ['somebody'], record_info: ['some info']) }
+      let(:params) do
+        <<~XML
+          <metadata xmlns="http://www.w3.org/2005/Atom">
+            <member_ids>new-child-work-id</member_ids>
+          </metadata>
+        XML
+      end
+
+      it 'replaces the current member_ids' do
+        put "/sword/v2/works/#{work.id}", headers: headers, params: params
+
+        doc = Nokogiri::XML(response.body)
+
+        expect(doc.root.xpath('h4cmeta:member_ids', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'new-child-work-id'
+      end
     end
   end
 end
