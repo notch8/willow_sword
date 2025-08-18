@@ -6,7 +6,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
   end
 
   describe 'GET /sword/v2/file_sets/:id' do
-    let!(:file_set) { valkyrie_create(:hyrax_file_set, id: 'file-set-123', title: ['Test File Set'], creator: ['admin@example.com']) }
+    let!(:file_set) { valkyrie_create(:hyrax_file_set, :with_files, id: 'file-set-123', title: ['Test File Set'], creator: ['admin@example.com']) }
 
     it 'returns 200 with valid API key' do
       get "/sword/v2/file_sets/#{file_set.id}", headers: { 'Api-key' => 'test' }
@@ -14,10 +14,8 @@ RSpec.describe 'SWORD FileSets', type: :request do
       doc = Nokogiri::XML(response.body)
       expect(doc.root.name).to eq('entry')
       expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('file-set-123')
-
-      content = doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first
-      expect(content['src']).to include("/sword/v2/file_sets/#{file_set.id}")
-      expect(content['type']).to eq 'text/html'
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/downloads/#{file_set.id}")
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq file_set.original_file.mime_type
     end
   end
 
@@ -40,6 +38,8 @@ RSpec.describe 'SWORD FileSets', type: :request do
     end
 
     it 'creates a FileSet associated with the Work' do
+      file_metadata = Hyrax::FileMetadata.new(mime_type: 'application/pdf')
+      allow_any_instance_of(Hyrax::FileSet).to receive(:original_file).and_return(file_metadata)
       post '/sword/v2/works/work-1/file_sets', headers: headers, params: params
 
       doc = Nokogiri::XML(response.body)
@@ -47,9 +47,11 @@ RSpec.describe 'SWORD FileSets', type: :request do
 
       file_set_id = doc.root.at_xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
       expect(doc.root.xpath('h4csys:internal_resource', 'h4csys' => 'https://hykucommons.org/schema/system').text).to eq 'FileSet'
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/downloads/#{file_set_id}")
 
-      content_src = doc.root.at_xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom')['src']
-      expect(content_src).to end_with("/sword/v2/file_sets/#{file_set_id}")
+      file_set = Hyrax.query_service.find_by(id: file_set_id)
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq file_set.original_file.mime_type
+
       work = Hyrax.query_service.find_by(id: 'work-1')
       expect(work.member_ids).to include(file_set_id)
     end
@@ -99,6 +101,8 @@ RSpec.describe 'SWORD FileSets', type: :request do
     end
 
     it 'updates the FileSet metadata' do
+      file_metadata = Hyrax::FileMetadata.new(mime_type: 'application/pdf')
+      allow_any_instance_of(Hyrax::FileSet).to receive(:original_file).and_return(file_metadata)
       put "/sword/v2/file_sets/#{file_set.id}", headers: headers, params: params
 
       fs = Hyrax.query_service.find_by(id: file_set.id)
@@ -106,7 +110,10 @@ RSpec.describe 'SWORD FileSets', type: :request do
 
       doc = Nokogiri::XML(response.body)
       expect(doc.root.name).to eq('entry')
+      expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('file-set-123')
       expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated FileSet Title')
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/downloads/file-set-123")
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('application/pdf')
     end
   end
 end
