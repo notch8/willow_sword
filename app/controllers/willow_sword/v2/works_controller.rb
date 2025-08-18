@@ -9,6 +9,7 @@ module WillowSword
         begin
           perform_create
           @file_set_ids = file_set_ids
+          @child_work_ids = child_work_ids
 
           xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
           render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :created, location: v2_work_url(@object.id)
@@ -22,6 +23,7 @@ module WillowSword
         find_work_by_query
         render_not_found and return unless @object
         @file_set_ids = file_set_ids
+        @child_work_ids = child_work_ids
 
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
         render '/willow_sword/v2/works/entry.hyku.xml.builder', locals: { xw: xw }, status: 200
@@ -34,6 +36,8 @@ module WillowSword
 
         begin
           perform_update
+          @file_set_ids = file_set_ids
+          @child_work_ids = child_work_ids
 
           xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
           render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :ok
@@ -49,6 +53,15 @@ module WillowSword
         @attributes = xw.metadata
         set_visibility
         @resource_type = xw.model if @attributes.any?
+      end
+
+      private
+
+      def child_work_ids
+        member_ids = @object&.member_ids || []
+        return [] if member_ids.empty?
+
+        Hyrax.query_service.find_many_by_ids(ids: member_ids).filter_map { |member| member.id if member.work? }
       end
     end
   end
