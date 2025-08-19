@@ -82,6 +82,8 @@ RSpec.describe 'SWORD Works', type: :request do
             expect(id).to be_present
             expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/concern/monographs/#{id}")
             expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
+            expect(doc.root.xpath('h4cmeta:keyword', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('Digital Preservation')
+            expect(doc.root.xpath('h4cmeta:resource_type', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('Text')
 
             work = Hyrax.query_service.find_by(id: id)
             expect(work.internal_resource).to eq 'Monograph'
@@ -96,6 +98,31 @@ RSpec.describe 'SWORD Works', type: :request do
             id = doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
             work = Hyrax.query_service.find_by(id: id)
             expect(work.internal_resource).to eq 'Monograph'
+          end
+        end
+
+        context 'with visibility' do
+          let(:params) do
+            File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'metadata_with_lease.xml'))
+          end
+
+          it 'creates a new work with the specified visibility settings' do
+            post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
+
+            doc = Nokogiri::XML(response.body)
+
+            expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
+            expect(doc.root.xpath('h4cmeta:visibility_during_lease', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
+            expect(doc.root.xpath('h4cmeta:lease_expiration_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('2030-01-01T00:00:00+00:00')
+            expect(doc.root.xpath('h4cmeta:visibility_after_lease', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('restricted')
+
+            id = doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
+            work = Hyrax.query_service.find_by(id: id)
+
+            expect(work.visibility).to eq 'authenticated'
+            expect(work.visibility_during_lease).to eq 'authenticated'
+            expect(work.visibility_after_lease).to eq 'restricted'
+            expect(work.lease_expiration_date.to_s).to eq '2030-01-01T00:00:00+00:00'
           end
         end
       end

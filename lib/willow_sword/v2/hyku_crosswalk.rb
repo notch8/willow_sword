@@ -1,14 +1,14 @@
 module WillowSword
   module V2
     class HykuCrosswalk
-      attr_reader :terms, :object, :object_klass, :metadata, :model
+      attr_reader :terms, :settable_terms, :object, :object_klass, :metadata, :model
 
       def initialize(src_file, object)
         @src_file = src_file
         @metadata = {}
         @object = object if object.respond_to?(:id) # can be an instance or a class, we want the instance
         @object_klass = object.respond_to?(:id) ? object.class : object # ensure we have the class
-        @terms = terms + visibility_terms if @object_klass.present?
+        @terms = settable_terms + visibility_terms if @object_klass.present?
         @model = @object_klass
       end
 
@@ -41,7 +41,7 @@ module WillowSword
       end
 
       # @returns [Array<String>] a list of terms used in the object to be included in the crosswalk
-      def terms
+      def settable_terms
         object_terms = object.respond_to?(:id) ? terms_from_object : terms_from_schema
         object_terms - system_terms
       end
@@ -95,6 +95,19 @@ module WillowSword
         }
       end
 
+      def translated_terms
+        {
+          'created' =>'date_created',
+          'rights' => 'rights_statement',
+          'relation' => 'related_url',
+          'type' => 'resource_type'
+        }
+      end
+
+      def singular
+        %w(rights) + visibility_terms
+      end
+
       # DC Terms is a superset of Dublin Core, meaning all original DC elements
       # are also available in the DC Terms namespace. Initially, the plan was to
       # support only DC Terms (`dcterms`), but metadata experts pointed out that
@@ -125,13 +138,14 @@ module WillowSword
         File.open(@src_file) do |f|
           doc = Nokogiri::XML(f)
           doc.remove_namespaces!
-          @terms.each do |term|
+          terms.each do |term|
             values = []
             doc.xpath("//#{term}").each do |t|
               values << t.text if t.text.present?
             end
-            key = term_translation_mappings.include?(term) ? term_translation_mappings[term] : term
-            @metadata[key.to_sym] = Array.wrap(values) unless values.blank?
+            key = translated_terms.include?(term) ? translated_terms[term] : term
+            values = values.first if values.present? && singular.include?(term)
+            @metadata[key.to_sym] = values unless values.blank?
           end
         end
       end
@@ -149,7 +163,7 @@ module WillowSword
         end
 
         # Add h4cmeta, settable metadata
-        terms.each do |term|
+        settable_terms.each do |term|
           Array.wrap(@object.send(term)).each do |val|
             val = val.to_s
             next if val.blank?
