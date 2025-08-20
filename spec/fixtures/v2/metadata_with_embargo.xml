@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<metadata>
+  <internal_resource>Monograph</internal_resource>
+  <title>DPC's Rapid Assessment Model (version 3)</title>
+  <member_of_collection_ids>collection-1</member_of_collection_ids>
+  <member_of_collection_ids>collection-2</member_of_collection_ids>
+  <based_near>Glasgow, Scotland, United Kingdom</based_near>
+  <creator>Digital Preservation Coalition</creator>
+  <keyword>Digital Preservation</keyword>
+  <rights_statement>http://rightsstatements.org/vocab/InC/1.0/</rights_statement>
+  <resource_type>Text</resource_type>
+  <license>https://creativecommons.org/licenses/by-nc-sa/4.0/</license>
+  <contributor>William</contributor>
+  <date_created>2024-03-27</date_created>
+  <description>This document includes introductory information about the history and structure of the model, details of how it should be used, and the model itself. The document also includes a RAM worksheet that can be printed out and used to carry out a RAM assessment.</description>
+  <identifier>http://doi.org/10.7207/dpcram24-03</identifier>
+  <publisher>Digital Preservation Coalition</publisher>
+  <related_url>https://www.dpconline.org/digipres/implement-digipres/dpc-ram/download-dpc-ram</related_url>
+  <source>https://www.dpconline.org/digipres/implement-digipres/dpc-ram/download-dpc-ram</source>
+  <visibility>embargo</visibility>
+  <visibility_during_embargo>authenticated</visibility_during_embargo>
+  <embargo_release_date>2030-01-01</embargo_release_date>
+  <visibility_after_embargo>open</visibility_after_embargo>
+  <record_info>some details about the record</record_info>
+</metadata>
