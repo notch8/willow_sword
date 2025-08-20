@@ -101,6 +101,10 @@ RSpec.configure do |config|
     config.before(:each) do
       DatabaseCleaner.strategy = :transaction
       DatabaseCleaner.start
+
+      # mocking .for_repository scope for Hyku applications
+      users_relation = User.registered.without_system_accounts
+      allow(User).to receive_message_chain(:registered, :without_system_accounts, :for_repository).and_return(users_relation)
     end
 
     config.append_after(:each) do
