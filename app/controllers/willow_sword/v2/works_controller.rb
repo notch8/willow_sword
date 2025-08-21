@@ -3,9 +3,10 @@
 module WillowSword
   module V2
     class WorksController < WillowSword::WorksController
+      include WillowSword::HandleError
+
       before_action :find_object_or_render_not_found, only: [:show, :update]
       before_action :authorize_action, only: [:create, :show, :update]
-      rescue_from CanCan::AccessDenied, StandardError, with: :handle_error
 
       def create
         perform_create
@@ -63,12 +64,6 @@ module WillowSword
         when 'update'
           authorize! :edit, @object
         end
-      end
-
-      def handle_error(exception)
-        error_type = exception.is_a?(CanCan::AccessDenied) ? :target_owner_unknown : :default
-        @error = WillowSword::Error.new(exception.message, error_type)
-        render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
       end
     end
   end
