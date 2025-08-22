@@ -15,9 +15,9 @@ module WillowSword
           'Not authorized. API key not available.'
         end
 
-      return true if allowed_access?
+      return true if allowed_access? && allowed_on_behalf?
 
-      @error = WillowSword::Error.new(message, :target_owner_unknown)
+      @error = WillowSword::Error.new(message, :target_owner_unknown) unless @error.present?
       render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
     end
 
@@ -28,7 +28,7 @@ module WillowSword
         @current_user = target_user
         true
       else
-        message = "On-behalf-of user not found"
+        message = "On-behalf-of user not found."
         @error = WillowSword::Error.new(message, :target_owner_unknown)
         false
       end
@@ -36,6 +36,15 @@ module WillowSword
 
     def allowed_access?
       @current_user.present? && @current_user.in?(::User.registered.without_system_accounts.for_repository.distinct)
+    end
+
+    def allowed_on_behalf?
+      return true if @headers[:on_behalf_of].nil? || @current_user.can?(:manage, User)
+
+      message = "Not authorized to act on behalf of another user."
+      @error = WillowSword::Error.new(message, :target_owner_unknown)
+
+      false
     end
   end
 end

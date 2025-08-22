@@ -55,9 +55,8 @@ RSpec.describe 'SWORD Works', type: :request do
             'Content-Disposition' => 'attachment; filename=metadata.xml',
             'Content-Type' => 'application/xml',
             'In-Progress' => 'false',
-            'On-Behalf-Of' => 'admin@example.com',
             'Packaging' => 'application/atom+xml;type=entry',
-            'Api-key' => 'test',
+            'Api-key' => 'test'
           }
         end
         let(:params) do
@@ -159,8 +158,7 @@ RSpec.describe 'SWORD Works', type: :request do
       let(:headers) do
         {
           'In-Progress' => 'false',
-          'On-Behalf-Of' => 'admin@example.com',
-          'Api-key' => 'test',
+          'Api-key' => 'test'
         }
       end
       let(:xml_file) do
@@ -187,8 +185,7 @@ RSpec.describe 'SWORD Works', type: :request do
             'Content-Disposition' => 'attachment; filename=testPackage.zip',
             'Content-Type' => 'application/zip',
             'In-Progress' => 'false',
-            'On-Behalf-Of' => 'admin@example.com',
-            'Api-key' => 'test',
+            'Api-key' => 'test'
           }
         end
         let(:params) do
@@ -260,8 +257,7 @@ RSpec.describe 'SWORD Works', type: :request do
       {
         'Content-Type' => 'application/xml',
         'In-Progress' => 'false',
-        'On-Behalf-Of' => 'admin@example.com',
-        'Api-key' => 'test',
+        'Api-key' => 'test'
       }
     end
     let(:params) do
