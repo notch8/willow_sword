@@ -25,6 +25,7 @@ RSpec.describe 'SWORD Collections', type: :request do
       doc = Nokogiri::XML(response.body)
 
       expect(doc.errors).to be_empty
+      expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq(collection.id)
       expect(doc.root.xpath('h4csys:type', 'h4csys' => 'https://hykucommons.org/schema/system')).to be_one
       expect(doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').first['href'])
         .to include("/sword/v2/collections/#{collection.id}")
