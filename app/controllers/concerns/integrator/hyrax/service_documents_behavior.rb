@@ -4,12 +4,17 @@ module Integrator
       extend ActiveSupport::Concern
       def show
         ids = collection_ids + admin_set_ids
-        query = ids.map { |id| "id:#{id}" }.join(" OR ")
-        results = ::Hyrax::SolrService.query(query, rows: ids.length, fl: 'id,title_tesim,has_model_ssim')
-        @collections = results.map { |doc| SolrDocument.new(doc) }
-        return @collections = [Collection.new(WillowSword.config.default_collection)] if @collections.blank?
 
-        @collections&.sort_by { |c| c['has_model_ssim'] }
+        if ids.present?
+          query = ids.map { |id| "id:#{id}" }.join(" OR ")
+          results = ::Hyrax::SolrService.query(query, rows: ids.length, fl: 'id,title_tesim,has_model_ssim')
+
+          @collections = results.map { |doc| SolrDocument.new(doc) }.sort_by { |c| c['has_model_ssim'] }
+        else
+          message = 'No accessible admin sets or user collections found.'
+          @error = WillowSword::Error.new(message, :target_owner_unknown)
+          render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+        end
       end
 
       private
