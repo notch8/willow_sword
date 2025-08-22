@@ -29,7 +29,6 @@ RSpec.describe 'SWORD FileSets', type: :request do
         'Content-Disposition' => 'attachment; filename=sample-file.pdf',
         'Content-Type' => 'text/plain',
         'In-Progress' => 'false',
-        'On-Behalf-Of' => 'admin@example.com',
         'Api-key' => 'test'
       }
     end
@@ -62,7 +61,6 @@ RSpec.describe 'SWORD FileSets', type: :request do
           'Content-Disposition' => 'attachment; filename=fileSetTestPackage.zip',
           'Content-Type' => 'application/zip',
           'In-Progress' => 'false',
-          'On-Behalf-Of' => 'admin@example.com',
           'Api-key' => 'test'
         }
 
@@ -88,8 +86,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
       {
         'Content-Type' => 'application/xml',
         'In-Progress' => 'false',
-        'On-Behalf-Of' => 'admin@example.com',
-        'Api-key' => 'test',
+        'Api-key' => 'test'
       }
     end
     let(:params) do
