@@ -23,7 +23,8 @@ module Integrator
           end
         else
           @collection = ::SolrDocument.find(id)
-          @works = ::Hyrax::SolrService.query("member_of_collection_ids_ssim:#{id}", rows: 10_000).map { |hit| SolrDocument.new(hit) } if @collection.present?
+          # consider a pagination mechanic
+          @works = find_works if @collection.present?
         end
         unless @collection
           message = "Server cannot find collection with id #{id}"
@@ -39,6 +40,15 @@ module Integrator
         WillowSword.config.collection_models.first.singularize.classify.constantize
       end
 
+      def find_works
+        if @collection['has_model_ssim']&.first == 'Collection'
+          ::Hyrax::SolrService.query("member_of_collection_ids_ssim:#{@collection.id}", rows: 100_000).map { |hit| SolrDocument.new(hit) }
+        elsif @collection['has_model_ssim']&.first == 'AdminSet'
+          ::Hyrax::SolrService.query("admin_set_id_ssim:#{@collection.id}", rows: 100_000).map { |hit| SolrDocument.new(hit) }
+        else
+          []
+        end
+      end
     end
   end
 end

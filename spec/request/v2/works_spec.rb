@@ -7,8 +7,8 @@ RSpec.describe 'SWORD Works', type: :request do
 
   describe 'GET /sword/v2/works/:id' do
     before do
-      valkyrie_create(:monograph, id: 'child-work-123', title: ['Child Work'], description: ['A child work'])
-      parent_work = valkyrie_create(:monograph, :with_one_file_set, id: 'work-123', title: ['Test Work'], description: ['A test work'])
+      valkyrie_create(:monograph, id: 'child-work-123', title: ['Child Work'], description: ['A child work'], creator: ['A Creator'])
+      parent_work = valkyrie_create(:monograph, :with_one_file_set, id: 'work-123', title: ['Test Work'], description: ['A test work'], creator: ['A Creator'])
       parent_work.member_ids << 'child-work-123'
       Hyrax.persister.save(resource: parent_work)
       Hyrax.index_adapter.save(resource: parent_work)
@@ -23,6 +23,9 @@ RSpec.describe 'SWORD Works', type: :request do
       expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('work-123')
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with('/concern/monographs/work-123')
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
+      expect(doc.root.xpath('atom:author/atom:name', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('A Creator')
+      expect(doc.root.xpath('atom:updated', 'atom' => 'http://www.w3.org/2005/Atom').text).to be_present
+      expect(doc.root.xpath('atom:summary', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('A test work')
 
       work_link_element = doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').find { |e| e['href'].include?('works') }
       expect(work_link_element['href']).to end_with("/sword/v2/works/work-123")
