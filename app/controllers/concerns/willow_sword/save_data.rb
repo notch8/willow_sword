@@ -105,6 +105,7 @@ module WillowSword
       if content_type == 'application/zip'
         zp = WillowSword::ZipPackage.new(file_path, contents_path)
         zp.unzip_file
+        validate_bagit(zp.dst) if @headers[:packaging] == 'http://purl.org/net/sword/package/BagIt'
       else
         # Copy file to contents dir
         FileUtils.cp(file_path, contents_path)
@@ -126,6 +127,18 @@ module WillowSword
       # @extension = Rack::Mime::MIME_TYPES.invert[mime_type]
       # Not matching content_type and packaging from headers with that computed.
       return `file --b --mime-type "#{file_path}"`.strip
+    end
+
+    def validate_bagit(file_path)
+      bag = BagIt::Bag.new(file_path)
+
+      unless bag.valid?
+        error_details = bag.errors.any? ? bag.errors.errors.values.join('; ') : ''
+        message = "Invalid BagIt package: #{error_details}"
+        raise @error = WillowSword::Error.new(message, :unprocessable_entity)
+      end
+
+      true
     end
   end
 end

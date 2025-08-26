@@ -4,6 +4,8 @@ module WillowSword
   class ZipPackage
     # Class to unzip a file and create a zip file
 
+    attr_reader :dst
+
     def initialize(src, dst)
       @src = src
       @dst = dst
@@ -51,4 +53,3 @@ module WillowSword
 
   end
 end
-

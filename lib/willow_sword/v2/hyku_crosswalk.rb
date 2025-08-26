@@ -137,6 +137,12 @@ module WillowSword
         return @metadata unless File.exist? @src_file
         File.open(@src_file) do |f|
           doc = Nokogiri::XML(f)
+
+          if doc.errors.present?
+            error_details = doc.errors.map(&:to_s).join("; ")
+            raise "Your XML is malformed, please fix and try again. Details: #{error_details}"
+          end
+
           doc.remove_namespaces!
           terms.each do |term|
             values = []
