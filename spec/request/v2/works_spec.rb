@@ -182,7 +182,7 @@ RSpec.describe 'SWORD Works', type: :request do
     end
 
     context 'with files' do
-      context 'with a zip file' do
+      context 'with a simple zip file' do
         let(:headers) do
           {
             'Content-Disposition' => 'attachment; filename=testPackage.zip',
@@ -248,6 +248,76 @@ RSpec.describe 'SWORD Works', type: :request do
 
             doc = Nokogiri::XML(response.body)
             expect(doc.root.xpath('h4cmeta:admin_set_id', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'custom_admin_set'
+          end
+        end
+      end
+
+      context 'when in a bagit zip file' do
+        context 'with a valid bag' do
+          let(:headers) do
+            {
+              'Content-Disposition' => 'attachment; filename=testPackageBagIt.zip',
+              'Content-Type' => 'application/zip',
+              'In-Progress' => 'false',
+              'Api-key' => 'test',
+              'Packaging' => 'http://purl.org/net/sword/package/BagIt'
+            }
+          end
+          let(:params) do
+            File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'testPackageBagIt.zip'))
+          end
+
+          it 'creates a new work with files' do
+            post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
+
+            doc = Nokogiri::XML(response.body)
+            expect(doc.root.name).to eq 'entry'
+
+            id = doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
+            work = Hyrax.query_service.find_by(id: id)
+            expect(work.internal_resource).to eq 'Monograph'
+            expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to include("/concern/monographs/#{work.id}")
+            expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq 'text/html'
+
+            link_edit = doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').find { |e| e['rel'] == 'edit' }
+            expect(link_edit['href']).to include("/sword/v2/works/#{work.id}")
+
+            link_edit_media = doc.root.xpath('atom:link', 'atom' => 'http://www.w3.org/2005/Atom').select { |e| e['rel'] == 'edit-media' }
+            fs_hrefs = link_edit_media.map { |lem| lem['href'].match(/(\/sword.*)/)[1] }
+            fs_ids = work.member_ids.map(&:to_s)
+            expect(fs_hrefs).to match_array(fs_ids.map { |id| "/sword/v2/file_sets/#{id}"})
+          end
+        end
+
+        context 'with an invalid bag' do
+          let(:headers) do
+            {
+              'Content-Disposition' => 'attachment; filename=testPackageBagIt.zip',
+              'Content-Type' => 'application/zip',
+              'In-Progress' => 'false',
+              'Api-key' => 'test',
+              'Packaging' => 'http://purl.org/net/sword/package/BagIt'
+            }
+          end
+          let(:params_with_extra_file_in_bagit) do
+            original_zip_path = WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'testPackageBagIt.zip')
+
+            temp_zip = Tempfile.new(['modified_bag', '.zip'])
+            FileUtils.cp(original_zip_path, temp_zip.path)
+
+            Zip::File.open(temp_zip.path) do |zip|
+              zip.get_output_stream('data/extra_file') do |f|
+                f.write('An extra file that breaks validation!')
+              end
+            end
+
+            File.read(temp_zip.path)
+          end
+
+          it 'fails to create' do
+            post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params_with_extra_file_in_bagit
+
+            expect(response).to have_http_status(:unprocessable_entity)
           end
         end
       end

@@ -16,6 +16,10 @@ module WillowSword
           iri: 'http://purl.org/net/sword/error/ErrorContent',
           code: 415
         },
+        unprocessable_entity: {
+          iri: 'http://purl.org/net/sword/error/ErrorUnprocessableEntity',
+          code: 422
+        },
         checksum_mismatch: {
           iri: 'http://purl.org/net/sword/error/ErrorChecksumMismatch',
           code: 412
