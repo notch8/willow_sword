@@ -283,6 +283,22 @@ RSpec.describe 'SWORD Works', type: :request do
       expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated Work Title')
     end
 
+    context 'with a malformed XML' do
+      let(:params) do
+        <<~XML
+          <metadata xmlns="http://www.w3.org/2005/Atom">
+            <title>Updated Work Title
+          </metadata>
+        XML
+      end
+
+      it 'returns a 400 Bad Request' do
+        put "/sword/v2/works/#{work.id}", headers: headers, params: params
+
+        expect(response).to have_http_status(:bad_request)
+      end
+    end
+
     context 'when updating the member_ids' do
       let!(:work) { valkyrie_create(:monograph, title: ['Original Title'], creator: ['somebody'], member_ids: ['old-member-id'], record_info: ['some info']) }
       let!(:new_child_work) { valkyrie_create(:monograph, id: 'new-child-work-id', title: ['Child Work'], creator: ['somebody'], record_info: ['some info']) }
