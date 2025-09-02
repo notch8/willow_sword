@@ -34,7 +34,9 @@ RSpec.describe 'SWORD Collections', type: :request do
         .to include("/concern/monographs/#{work.id}")
       expect(doc.root.xpath('atom:entry/atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type'])
         .to eq('text/html')
-      expect(doc.root.xpath('atom:entry/atom:link', 'atom' => 'http://www.w3.org/2005/Atom').first['href'])
+      expect(doc.root.xpath('atom:entry/atom:link[@rel="edit"]', 'atom' => 'http://www.w3.org/2005/Atom').first['href'])
+        .to include("/sword/v2/works/#{work.id}")
+      expect(doc.root.xpath('atom:entry/atom:link[@rel="edit-media"]', 'atom' => 'http://www.w3.org/2005/Atom').last['href'])
         .to include("/sword/v2/file_sets/#{work.member_ids.first}")
       expect(doc.root.xpath('atom:entry/atom:summary', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('A description')
     end
@@ -53,7 +55,9 @@ RSpec.describe 'SWORD Collections', type: :request do
           .to include("/concern/monographs/#{work.id}")
         expect(doc.root.xpath('atom:entry/atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type'])
           .to eq('text/html')
-        expect(doc.root.xpath('atom:entry/atom:link', 'atom' => 'http://www.w3.org/2005/Atom').first['href'])
+        expect(doc.root.xpath('atom:entry/atom:link[@rel="edit"]', 'atom' => 'http://www.w3.org/2005/Atom').first['href'])
+          .to include("/sword/v2/works/#{work.id}")
+        expect(doc.root.xpath('atom:entry/atom:link[@rel="edit-media"]', 'atom' => 'http://www.w3.org/2005/Atom').last['href'])
           .to include("/sword/v2/file_sets/#{work.member_ids.first}")
         expect(doc.root.xpath('atom:entry/atom:summary', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('A description')
       end
