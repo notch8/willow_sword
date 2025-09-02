@@ -21,6 +21,10 @@ Rails.application.config.to_prepare do
         def user_settable_attributes
           schema.keys.filter_map { |schema_key| schema_key.name unless schema_key.meta.empty? }
         end
+
+        def multiple_attributes
+          schema.keys.filter_map { |schema_key| schema_key.name if schema_key.meta['multiple'] == true }
+        end
       end
     end
 

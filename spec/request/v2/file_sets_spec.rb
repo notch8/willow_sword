@@ -16,6 +16,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
       expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('file-set-123')
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/downloads/#{file_set.id}")
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq file_set.original_file.mime_type
+      expect(doc.root.xpath('h4csys:label', 'h4csys' => 'https://hykucommons.org/schema/system').text).to eq 'image.png'
     end
   end
 
@@ -81,7 +82,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
   end
 
   describe 'PUT /sword/v2/file_sets/:id' do
-    let!(:file_set) { valkyrie_create(:hyrax_file_set, id: 'file-set-123', title: ['Test File Set'], creator: ['admin@example.com']) }
+    let!(:file_set) { valkyrie_create(:hyrax_file_set, :with_files, id: 'file-set-123', title: ['Test File Set'], creator: ['admin@example.com']) }
     let(:headers) do
       {
         'Content-Type' => 'application/xml',
@@ -93,13 +94,18 @@ RSpec.describe 'SWORD FileSets', type: :request do
       <<~XML
         <metadata>
           <title>Updated FileSet Title</title>
+          <creator>someone_else@example.com</creator>
+          <visibility_during_embargo>restricted</visibility_during_embargo>
+          <visibility_after_embargo>authenticated</visibility_after_embargo>
+          <embargo_release_date>2028-05-02T00:00:00+00:00</embargo_release_date>
+          <visibility>embargo</visibility>
         </metadata>
       XML
     end
 
     it 'updates the FileSet metadata' do
-      file_metadata = Hyrax::FileMetadata.new(mime_type: 'application/pdf')
-      allow_any_instance_of(Hyrax::FileSet).to receive(:original_file).and_return(file_metadata)
+      allow_any_instance_of(Hyrax::FileMetadata).to receive(:mime_type).and_return('image/png')
+
       put "/sword/v2/file_sets/#{file_set.id}", headers: headers, params: params
 
       fs = Hyrax.query_service.find_by(id: file_set.id)
@@ -110,7 +116,12 @@ RSpec.describe 'SWORD FileSets', type: :request do
       expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('file-set-123')
       expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated FileSet Title')
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/downloads/file-set-123")
-      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('application/pdf')
+      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('image/png')
+      expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('restricted')
+      expect(doc.root.xpath('h4cmeta:embargo_release_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('2028-05-02T00:00:00+00:00')
+      expect(doc.root.xpath('h4cmeta:visibility_after_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
+      expect(doc.root.xpath('h4cmeta:visibility_during_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('restricted')
+      expect(doc.root.xpath('h4cmeta:creator', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('someone_else@example.com')
     end
   end
 end

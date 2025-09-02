@@ -50,7 +50,7 @@ module WillowSword
       def system_terms
         %w(id internal_resource created_at
           updated_at new_record date_modified
-          date_uploaded depositor state).select { |term| terms_from_schema.include?(term) }
+          date_uploaded depositor state label).select { |term| terms_from_schema.include?(term) }
       end
 
       # @returns [Array<String>] a list of Dublin Core terms used in the object
@@ -105,7 +105,7 @@ module WillowSword
       end
 
       def singular
-        %w(rights) + visibility_terms
+        object_klass.user_settable_attributes.map(&:to_s) - object_klass.multiple_attributes.map(&:to_s) + visibility_terms
       end
 
       # DC Terms is a superset of Dublin Core, meaning all original DC elements

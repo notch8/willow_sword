@@ -53,7 +53,12 @@ module Integrator
               'file_set.save_acl' => { permissions_params: change_set.input_params["permissions"] }
             )
           .call(change_set).value_or { false }
-        @file_set = result if result
+        return @file_set = result if result
+
+        message = "Error updating file set: #{change_set.errors.full_messages.join(', ')}"
+        @error = WillowSword::Error.new(message, :unprocessable_entity)
+ 
+        raise @error
       end
 
       def coerce_valkyrie_params
