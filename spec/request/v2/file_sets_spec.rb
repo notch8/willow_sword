@@ -117,7 +117,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
       expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated FileSet Title')
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/downloads/file-set-123")
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('image/png')
-      expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('restricted')
+      expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('embargo')
       expect(doc.root.xpath('h4cmeta:embargo_release_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('2028-05-02T00:00:00+00:00')
       expect(doc.root.xpath('h4cmeta:visibility_after_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
       expect(doc.root.xpath('h4cmeta:visibility_during_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('restricted')

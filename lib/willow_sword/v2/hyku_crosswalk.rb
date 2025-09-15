@@ -172,6 +172,7 @@ module WillowSword
         settable_terms.each do |term|
           Array.wrap(@object.send(term)).each do |val|
             val = val.to_s
+            val = handle_visibility(val) if term == 'visibility'
             next if val.blank?
 
             prefix = prefix_lookup_for('h4cmeta')
@@ -225,6 +226,19 @@ module WillowSword
       def visibility_terms
         %w(visibility_during_embargo visibility_after_embargo embargo_release_date
           visibility_during_lease visibility_after_lease lease_expiration_date visibility)
+      end
+
+      # Convert the visibility to read either 'embargo' or 'lease'
+      # @returns [String]
+      def handle_visibility(value)
+        case value
+        when @object.embargo&.active? && @object.visibility_during_embargo
+          'embargo'
+        when @object.lease&.active? && @object.visibility_during_lease
+          'lease'
+        else
+          value
+        end
       end
     end
   end

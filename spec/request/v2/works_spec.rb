@@ -114,7 +114,7 @@ RSpec.describe 'SWORD Works', type: :request do
 
               doc = Nokogiri::XML(response.body)
 
-              expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
+              expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('lease')
               expect(doc.root.xpath('h4cmeta:visibility_during_lease', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
               expect(doc.root.xpath('h4cmeta:lease_expiration_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('2030-01-01T00:00:00+00:00')
               expect(doc.root.xpath('h4cmeta:visibility_after_lease', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('restricted')
@@ -139,7 +139,7 @@ RSpec.describe 'SWORD Works', type: :request do
 
               doc = Nokogiri::XML(response.body)
 
-              expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
+              expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('embargo')
               expect(doc.root.xpath('h4cmeta:visibility_during_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
               expect(doc.root.xpath('h4cmeta:embargo_release_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('2030-01-01T00:00:00+00:00')
               expect(doc.root.xpath('h4cmeta:visibility_after_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('open')
