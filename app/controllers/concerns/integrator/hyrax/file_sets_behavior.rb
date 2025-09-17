@@ -44,8 +44,14 @@ module Integrator
       def update_file_set
         raise "File set doesn't exist" unless @file_set
 
-        change_set = ::Hyrax::Forms::ResourceForm.for(resource: @file_set)
         attributes = coerce_valkyrie_params
+
+        if attributes[:visibility].present?
+          ::Hyrax::Actors::EmbargoActor.new(@file_set).destroy if @file_set.embargo
+          ::Hyrax::Actors::LeaseActor.new(@file_set).destroy if @file_set.lease
+        end
+
+        change_set = ::Hyrax::Forms::ResourceForm.for(resource: @file_set)
         result =
           change_set.validate(attributes) &&
           ::Hyrax::Transactions::Container['change_set.update_file_set']
@@ -57,7 +63,7 @@ module Integrator
 
         message = "Error updating file set: #{change_set.errors.full_messages.join(', ')}"
         @error = WillowSword::Error.new(message, :unprocessable_entity)
- 
+
         raise @error
       end
 

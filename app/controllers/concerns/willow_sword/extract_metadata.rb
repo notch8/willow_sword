@@ -23,6 +23,7 @@ module WillowSword
 
       def set_visibility
         @attributes[:visibility] = Array.wrap(@attributes[:visibility]).first&.strip
+        return if @attributes[:visibility].blank? && lease_or_embargo_or_open?(@object)
         return @attributes[:visibility] = 'restricted' if @attributes[:visibility].blank?
 
         case @attributes[:visibility]
@@ -61,5 +62,11 @@ module WillowSword
           @attributes[:visibility_after_lease].present? &&
           @attributes[:lease_expiration_date].present?
       end
-  end
+
+      def lease_or_embargo_or_open?(object)
+        return if object.nil?
+
+        object.try(:embargo) || object.try(:lease) || object.try(:visibility) == 'open'
+      end
+    end
 end

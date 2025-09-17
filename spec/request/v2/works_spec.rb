@@ -114,7 +114,7 @@ RSpec.describe 'SWORD Works', type: :request do
 
               doc = Nokogiri::XML(response.body)
 
-              expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
+              expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('lease')
               expect(doc.root.xpath('h4cmeta:visibility_during_lease', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
               expect(doc.root.xpath('h4cmeta:lease_expiration_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('2030-01-01T00:00:00+00:00')
               expect(doc.root.xpath('h4cmeta:visibility_after_lease', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('restricted')
@@ -139,7 +139,7 @@ RSpec.describe 'SWORD Works', type: :request do
 
               doc = Nokogiri::XML(response.body)
 
-              expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
+              expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('embargo')
               expect(doc.root.xpath('h4cmeta:visibility_during_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
               expect(doc.root.xpath('h4cmeta:embargo_release_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('2030-01-01T00:00:00+00:00')
               expect(doc.root.xpath('h4cmeta:visibility_after_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('open')
@@ -386,6 +386,76 @@ RSpec.describe 'SWORD Works', type: :request do
         doc = Nokogiri::XML(response.body)
 
         expect(doc.root.xpath('h4cmeta:member_ids', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'new-child-work-id'
+      end
+    end
+
+    context 'when updating the visibility' do
+      context 'on a work with an embargo' do
+        let(:work) { valkyrie_create(:monograph, :under_embargo, :with_one_file_set, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
+        let(:params) do
+          <<~XML
+            <metadata xmlns="http://www.w3.org/2005/Atom">
+              <visibility>open</visibility>
+            </metadata>
+          XML
+        end
+
+        before do
+          Hyrax::ResourceVisibilityPropagator.new(source: work).propagate
+        end
+
+        it 'removes the embargo' do
+          expect(work.embargo).to be_present
+
+          put "/sword/v2/works/#{work.id}", headers: headers, params: params
+
+          doc = Nokogiri::XML(response.body)
+
+          expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'open'
+          expect(doc.root.xpath('h4cmeta:embargo_release_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to be_empty
+
+          updated_work = Hyrax.query_service.find_by(id: work.id)
+
+          expect(updated_work.embargo).not_to be_active
+          expect(updated_work.visibility).to eq 'open'
+
+          file_set = Hyrax.query_service.find_by(id: work.member_ids.first)
+          expect(file_set.embargo).to be_active
+        end
+      end
+
+      context 'on a work with a lease' do
+        let(:work) { valkyrie_create(:monograph, :under_lease, :with_one_file_set, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
+        let(:params) do
+          <<~XML
+            <metadata xmlns="http://www.w3.org/2005/Atom">
+              <visibility>open</visibility>
+            </metadata>
+          XML
+        end
+
+        before do
+          Hyrax::ResourceVisibilityPropagator.new(source: work).propagate
+        end
+
+        it 'removes the lease' do
+          expect(work.lease).to be_present
+
+          put "/sword/v2/works/#{work.id}", headers: headers, params: params
+
+          doc = Nokogiri::XML(response.body)
+
+          expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'open'
+          expect(doc.root.xpath('h4cmeta:lease_expiration_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to be_empty
+
+          updated_work = Hyrax.query_service.find_by(id: work.id)
+
+          expect(updated_work.lease).not_to be_active
+          expect(updated_work.visibility).to eq 'open'
+
+          file_set = Hyrax.query_service.find_by(id: work.member_ids.first)
+          expect(file_set.lease).to be_active
+        end
       end
     end
   end
