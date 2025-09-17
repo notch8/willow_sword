@@ -22,7 +22,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
 
   describe 'POST /sword/v2/works/:id/file_sets' do
     before do
-      valkyrie_create(:hyrax_work, id: 'work-1', title: ['Test Work'])
+      valkyrie_create(:hyrax_work, :under_embargo, id: 'work-1', title: ['Test Work'])
     end
 
     let(:headers) do
@@ -48,6 +48,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
       file_set_id = doc.root.at_xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
       expect(doc.root.xpath('h4csys:internal_resource', 'h4csys' => 'https://hykucommons.org/schema/system').text).to eq 'FileSet'
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/downloads/#{file_set_id}")
+      expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'embargo'
 
       file_set = Hyrax.query_service.find_by(id: file_set_id)
       expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq file_set.original_file.mime_type
@@ -76,7 +77,8 @@ RSpec.describe 'SWORD FileSets', type: :request do
         doc = Nokogiri::XML(response.body)
         expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq 'My title'
         expect(doc.root.xpath('h4csys:internal_resource', 'h4csys' => 'https://hykucommons.org/schema/system').text).to eq 'FileSet'
-        expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'authenticated'
+        # matches the parent work even if metadata says otherwise
+        expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'embargo'
       end
     end
   end
