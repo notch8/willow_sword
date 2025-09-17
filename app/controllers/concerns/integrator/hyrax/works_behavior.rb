@@ -61,6 +61,11 @@ module Integrator
       def update_work
         raise "Object doesn't exist" unless @object
 
+        if update_attributes[:visibility].present?
+          ::Hyrax::Actors::EmbargoActor.new(@object).destroy if @object.embargo
+          ::Hyrax::Actors::LeaseActor.new(@object).destroy if @object.lease
+        end
+
         perform_transaction_for(object: @object, attrs: update_attributes) do
           transactions["change_set.update_work"]
             .with_step_args(
