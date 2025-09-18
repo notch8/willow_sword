@@ -391,11 +391,13 @@ RSpec.describe 'SWORD Works', type: :request do
 
     context 'when updating the visibility' do
       context 'on a work with an embargo' do
-        let(:work) { valkyrie_create(:monograph, :under_embargo, :with_one_file_set, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
+        let(:work) { valkyrie_create(:monograph, :under_embargo, :with_member_file_sets, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
         let(:params) do
           <<~XML
             <metadata xmlns="http://www.w3.org/2005/Atom">
               <visibility>open</visibility>
+              <member_ids>#{work.member_ids.first}</member_ids>
+              <member_ids>#{work.member_ids.last}</member_ids>
             </metadata>
           XML
         end
@@ -413,9 +415,11 @@ RSpec.describe 'SWORD Works', type: :request do
 
           expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq 'open'
           expect(doc.root.xpath('h4cmeta:embargo_release_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to be_empty
+          expect(doc.root.xpath('h4cmeta:member_ids', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').map(&:text)).to match_array(work.member_ids.map(&:to_s))
 
           updated_work = Hyrax.query_service.find_by(id: work.id)
 
+          expect(updated_work.member_ids.count).to eq 2
           expect(updated_work.embargo).not_to be_active
           expect(updated_work.visibility).to eq 'open'
 
