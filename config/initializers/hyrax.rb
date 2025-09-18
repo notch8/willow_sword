@@ -22,8 +22,25 @@ Rails.application.config.to_prepare do
           schema.keys.filter_map { |schema_key| schema_key.name unless schema_key.meta.empty? }
         end
 
+        ##
+        # Attributes that are multiple valued
+        #
+        # @return [Array<Symbol>]
         def multiple_attributes
-          schema.keys.filter_map { |schema_key| schema_key.name if schema_key.meta['multiple'] == true }
+          schema.keys.filter_map { |schema_key| schema_key.name if multiple_attribute_type?(schema_key) }
+        end
+
+        private
+
+        def multiple_attribute_type?(schema_key)
+          return false unless schema_key.respond_to?(:rule)
+
+          rule = schema_key.rule
+          if rule.respond_to?(:rules)
+            rule.rules.any? { |r| r.options&.dig(:args) == [Array] }
+          else
+            rule.options&.dig(:args) == [Array]
+          end
         end
       end
     end
