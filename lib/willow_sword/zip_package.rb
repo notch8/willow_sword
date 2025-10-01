@@ -15,13 +15,16 @@ module WillowSword
 
     # Unpack a zip file along with any folders and sub folders at the destination
     def unzip_file
-      Zip::File.open(@src) { |zip_file|
-        zip_file.each { |f|
-          f_path=File.join(@dst, f.name)
-          FileUtils.mkdir_p(File.dirname(f_path))
-          zip_file.extract(f, f_path) unless File.exist?(f_path)
-        }
-      }
+      FileUtils.mkdir_p(@dst)
+      Rails.logger.info "Extracting #{File.basename(@src)} to #{@dst}"
+      cmd = ["unzip", "-q", @src, "-d", @dst]
+
+      unless system(*cmd)
+        error_msg = "Unzip failed with exit code #{$?.exitstatus}"
+        Rails.logger.error error_msg
+        @error = WillowSword::Error.new(error_msg, :unprocessable_entity)
+        return false
+      end
     end
 
     # Recursively generate a zip file from the contents of a specified directory.
