@@ -52,7 +52,7 @@ Rails.application.config.to_prepare do
     module Hyrax::WorkUploadsHandlerDecorator
       private
 
-      def file_set_args(file)
+      def file_set_args(file, file_set_params = {})
         extra_params = file_set_extra_params(file)
         safe_params = extra_params.slice(*Hyrax::FileSet.user_settable_attributes)
         super(file).merge(safe_params)
