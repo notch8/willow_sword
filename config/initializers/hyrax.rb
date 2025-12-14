@@ -55,7 +55,7 @@ Rails.application.config.to_prepare do
       def file_set_args(file, file_set_params = {})
         extra_params = file_set_extra_params(file)
         safe_params = extra_params.slice(*Hyrax::FileSet.user_settable_attributes)
-        super(file).merge(safe_params)
+        super(file, file_set_params).merge(safe_params)
       end
     end
 
