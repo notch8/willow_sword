@@ -214,7 +214,11 @@ module WillowSword
       # Looks up all the terms from the object's schema
       # @returns [Array<String>] a list of terms from the object's schema
       def terms_from_schema
-        object_klass.schema.keys.map { |field| field.name.to_s }
+        object_schema.keys.map { |field| field.name.to_s }
+      end
+
+      def object_schema
+        @object_schema ||= object_klass.new.singleton_class.schema || object_klass.schema
       end
 
       # @returns [Array<String>] a list of terms used in the object to be included in the crosswalk
