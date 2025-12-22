@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    willow_sword (0.8.1)
+    willow_sword (0.8.2)
       bagit (~> 0.4)
       rails (~> 6.1)
       rubyzip (>= 1.0.0)
