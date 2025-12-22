@@ -181,20 +181,19 @@ module Integrator
         end
 
         def permitted_attributes
-          (attributes_from_schema + extra_attributes + visibility_attributes).uniq
+          (attribute_names + [:id, :edit_users, :edit_groups, :read_groups] + visibility_attributes).uniq
         end
 
-        def extra_attributes
-          %i[id edit_users edit_groups read_groups admin_set_id alternate_ids embargo_id lease_id member_ids
-            member_of_collection_ids on_behalf_of proxy_depositor rendering_ids representative_id thumbnail_id]
+        def attribute_names
+          if work_singleton_class.schema.present?
+            work_singleton_class.attribute_names
+          else
+            @work_klass.attribute_names
+          end
         end
 
-        def attributes_from_schema
-          object_schema.keys.filter_map { |key| key.name if key.meta['form'].present? }
-        end
-
-        def object_schema
-          @object_schema ||= @work_klass.new.singleton_class.schema || @work_klass.schema
+        def work_singleton_class
+          @work_klass.new.singleton_class
         end
 
         def visibility_attributes
