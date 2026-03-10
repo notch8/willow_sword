@@ -14,7 +14,7 @@ module WillowSword
         @child_work_ids = child_work_ids
 
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
-        render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :created
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :created
       end
 
       def show
@@ -22,7 +22,7 @@ module WillowSword
         @child_work_ids = child_work_ids
 
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
-        render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :ok
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :ok
       end
 
       def update
@@ -31,7 +31,7 @@ module WillowSword
         @child_work_ids = child_work_ids
 
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @object)
-        render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :ok
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :ok
       end
 
       private

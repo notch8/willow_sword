@@ -13,7 +13,7 @@ module Integrator
         else
           message = 'No accessible admin sets or user collections found.'
           @error = WillowSword::Error.new(message, :target_owner_unknown)
-          render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+          render 'willow_sword/shared/error', formats: [:xml], status: @error.code
         end
       end
 
