@@ -12,19 +12,19 @@ module WillowSword
         perform_create
 
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
-        render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :created
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :created
       end
 
       def show
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
-        render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :ok
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :ok
       end
 
       def update
         perform_update
 
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
-        render 'entry.hyku.xml.builder', locals: { xw: xw }, status: :ok
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :ok
       end
 
       private

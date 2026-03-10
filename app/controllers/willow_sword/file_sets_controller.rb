@@ -20,11 +20,11 @@ module WillowSword
       @error = nil
       if perform_create
         # @collection_id = params[:collection_id]
-        render 'create.xml.builder', formats: [:xml], status: :created,
+        render 'create', formats: [:xml], status: :created,
           location: collection_work_file_set_url(params[:collection_id], @object, @file_set)
       else
         @error = WillowSword::Error.new("Error creating file set") unless @error.present?
-        render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
       end
     end
 
@@ -37,10 +37,10 @@ module WillowSword
       render_file_set_not_found and return unless @file_set
       @error = nil
       if perform_update
-        render 'update.xml.builder', formats: [:xml], status: :no_content
+        render 'update', formats: [:xml], status: :no_content
       else
         @error = WillowSword::Error.new("Error updating file set") unless @error.present?
-        render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
       end
 
     end
@@ -73,13 +73,13 @@ module WillowSword
       def render_file_set_not_found
         message = "Server cannot find file set with id #{params[:id]}"
         @error = WillowSword::Error.new(message)
-        render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
       end
 
       def render_work_not_found
         message = "Server cannot find work with id #{params[:work_id]}"
         @error = WillowSword::Error.new(message)
-        render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
       end
 
   end

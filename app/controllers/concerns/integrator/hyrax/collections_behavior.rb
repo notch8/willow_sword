@@ -29,7 +29,7 @@ module Integrator
         unless @collection
           message = "Server cannot find collection with id #{id}"
           @error = WillowSword::Error.new(message)
-          render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+          render 'willow_sword/shared/error', formats: [:xml], status: @error.code
           return
         end
       end

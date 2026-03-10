@@ -16,11 +16,11 @@ module WillowSword
 
       if (WillowSword.config.xml_mapping_read == 'MODS')
         @mods = assign_model_to_mods
-        render '/willow_sword/works/show.mods.xml.builder', formats: [:xml], status: 200
+        render 'willow_sword/works/show.mods.xml.builder', formats: [:xml], status: 200
       elsif (WillowSword.config.xml_mapping_read == 'Hyku')
-        render '/willow_sword/works/show.hyku.xml.builder', formats: [:xml], status: 200
+        render 'willow_sword/works/show', formats: [:xml], variants: [:hyku], status: 200
       else
-        render '/willow_sword/works/show.dc.xml.builder', formats: [:xml], status: 200
+        render 'willow_sword/works/show.dc.xml.builder', formats: [:xml], status: 200
       end
     end
 
@@ -31,10 +31,10 @@ module WillowSword
         perform_create
         @file_set_ids = file_set_ids
         # @collection_id = params[:collection_id]
-        render 'create.xml.builder', formats: [:xml], status: :created, location: collection_work_url(params[:collection_id], @object)
+        render 'create', formats: [:xml], status: :created, location: collection_work_url(params[:collection_id], @object)
       rescue StandardError => e
         @error = WillowSword::Error.new(e.message) unless @error.present?
-        render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
       end
     end
 
@@ -46,10 +46,10 @@ module WillowSword
 
       begin
         perform_update
-        render 'update.xml.builder', formats: [:xml], status: :ok
+        render 'update', formats: [:xml], status: :ok
       rescue StandardError => e
         @error = WillowSword::Error.new(e.message) unless @error.present?
-        render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
       end
     end
 
@@ -73,7 +73,7 @@ module WillowSword
     def render_not_found
       message = "Server cannot find work with id #{params[:id]}"
       @error = WillowSword::Error.new(message)
-      render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+      render 'willow_sword/shared/error', formats: [:xml], status: @error.code
     end
 
     def file_set_ids

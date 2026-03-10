@@ -18,7 +18,7 @@ module WillowSword
       return true if allowed_access? && allowed_on_behalf?
 
       @error = WillowSword::Error.new(message, :target_owner_unknown) unless @error.present?
-      render '/willow_sword/shared/error.xml.builder', formats: [:xml], status: @error.code
+      render 'willow_sword/shared/error', formats: [:xml], status: @error.code
     end
 
     def validate_target_user
