@@ -154,6 +154,26 @@ RSpec.describe 'SWORD Works', type: :request do
             end
           end
         end
+
+        context 'with DC element names (<rights>, <type>) instead of Hyrax field names' do
+          let(:params) do
+            File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'dc_metadata.xml'))
+          end
+
+          it 'maps DC elements to work attributes' do
+            headers['Hyrax-Work-Model'] = 'Monograph'
+
+            post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
+
+            expect(response).to have_http_status(:created)
+
+            id = Nokogiri::XML(response.body).root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
+            work = Hyrax.query_service.find_by(id: id)
+
+            expect(work.resource_type).to eq(['Text'])
+            expect(work.rights_statement).to eq(['http://rightsstatements.org/vocab/InC/1.0/'])
+          end
+        end
       end
     end
 
