@@ -11,7 +11,7 @@ module WillowSword
       # Choose based on content type
       return false unless validate_target_user
       case request.content_type
-      when 'multipart/form-data'
+      when /\Amultipart\/form-data/
         # multipart deposit
         return false unless validate_multi_part
         return false unless save_multipart_data
