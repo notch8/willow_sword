@@ -66,7 +66,7 @@ module Integrator
           ::Hyrax::Actors::LeaseActor.new(@object).destroy if @object.lease
         end
 
-        perform_transaction_for(object: @object, attrs: update_attributes) do
+        @object = perform_transaction_for(object: @object, attrs: update_attributes) do
           transactions["change_set.update_work"]
             .with_step_args(
               'work_resource.add_file_sets' => { uploaded_files: uploaded_files },

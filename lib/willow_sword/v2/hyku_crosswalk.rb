@@ -144,10 +144,13 @@ module WillowSword
           end
 
           doc.remove_namespaces!
+          dc_alias = translated_terms.invert
           terms.each do |term|
             values = []
-            doc.xpath("//#{term}").each do |t|
-              values << t.text if t.text.present?
+            ([term] + Array.wrap(dc_alias[term])).each do |xpath_term|
+              doc.xpath("//#{xpath_term}").each do |t|
+                values << t.text if t.text.present?
+              end
             end
             key = translated_terms.include?(term) ? translated_terms[term] : term
             values = values.first if values.present? && singular.include?(term)

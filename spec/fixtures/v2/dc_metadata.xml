@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<dc xmlns="http://purl.org/dc/elements/1.1/">
+  <title>Minimal DC Metadata</title>
+  <creator>Test Creator</creator>
+  <type>Text</type>
+  <rights>http://rightsstatements.org/vocab/InC/1.0/</rights>
+  <record_info>dc regression test</record_info>
+</dc>

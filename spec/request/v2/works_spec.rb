@@ -154,6 +154,26 @@ RSpec.describe 'SWORD Works', type: :request do
             end
           end
         end
+
+        context 'with DC element names (<rights>, <type>) instead of Hyrax field names' do
+          let(:params) do
+            File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'dc_metadata.xml'))
+          end
+
+          it 'maps DC elements to work attributes' do
+            headers['Hyrax-Work-Model'] = 'Monograph'
+
+            post "/sword/v2/collections/#{admin_set_id}/works", headers: headers, params: params
+
+            expect(response).to have_http_status(:created)
+
+            id = Nokogiri::XML(response.body).root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
+            work = Hyrax.query_service.find_by(id: id)
+
+            expect(work.resource_type).to eq(['Text'])
+            expect(work.rights_statement).to eq(['http://rightsstatements.org/vocab/InC/1.0/'])
+          end
+        end
       end
     end
 
@@ -325,6 +345,7 @@ RSpec.describe 'SWORD Works', type: :request do
   end
 
   describe 'PUT /sword/v2/works/:id' do
+    include ActiveSupport::Testing::TimeHelpers
     let(:work) { valkyrie_create(:monograph, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
     let(:headers) do
       {
@@ -342,15 +363,23 @@ RSpec.describe 'SWORD Works', type: :request do
     end
 
     it 'updates the work' do
-      put "/sword/v2/works/#{work.id}", headers: headers, params: params
+      original_updated_at = work.updated_at
 
-      doc = Nokogiri::XML(response.body)
+      # Advance time by 1 second so the update lands in a different second than creation.
+      # The XML serializes updated_at with second granularity, so without this the
+      # parsed timestamp can be <= original_updated_at when both happen in the same second.
+      travel_to 1.second.from_now do
+        put "/sword/v2/works/#{work.id}", headers: headers, params: params
 
-      expect(doc.root.name).to eq('entry')
-      expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq(work.id.to_s)
-      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/concern/monographs/#{work.id.to_s}")
-      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
-      expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated Work Title')
+        doc = Nokogiri::XML(response.body)
+
+        expect(doc.root.name).to eq('entry')
+        expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq(work.id.to_s)
+        expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/concern/monographs/#{work.id.to_s}")
+        expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('text/html')
+        expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated Work Title')
+        expect(Time.parse(doc.root.xpath('atom:updated', 'atom' => 'http://www.w3.org/2005/Atom').text)).to be > original_updated_at
+      end
     end
 
     context 'with a malformed XML' do
