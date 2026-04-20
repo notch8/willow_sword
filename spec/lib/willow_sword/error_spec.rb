@@ -10,6 +10,7 @@ RSpec.describe WillowSword::Error do
       expect(error.errors).to include(:checksum_mismatch)
       expect(error.errors).to include(:bad_request)
       expect(error.errors).to include(:target_owner_unknown)
+      expect(error.errors).to include(:unauthenticated)
       expect(error.errors).to include(:mediation_not_allowed)
       expect(error.errors).to include(:method_not_allowed)
       expect(error.errors).to include(:max_upload_size_exceeded)
@@ -61,6 +62,14 @@ RSpec.describe WillowSword::Error do
       error = WillowSword::Error.new(msg, :target_owner_unknown)
       expect(error.iri).to eq('http://purl.org/net/sword/error/TargetOwnerUnknown')
       expect(error.code).to eq 403
+      expect(error.message).to eq msg
+    end
+
+    it "should return error of type unauthenticated" do
+      msg = 'unauthenticated'
+      error = WillowSword::Error.new(msg, :unauthenticated)
+      expect(error.iri).to eq('http://purl.org/net/sword/error/TargetOwnerUnknown')
+      expect(error.code).to eq 401
       expect(error.message).to eq msg
     end
 

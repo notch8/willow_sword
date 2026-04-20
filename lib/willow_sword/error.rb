@@ -32,6 +32,10 @@ module WillowSword
           iri: 'http://purl.org/net/sword/error/TargetOwnerUnknown',
           code: 403
         },
+        unauthenticated: {
+          iri: 'http://purl.org/net/sword/error/TargetOwnerUnknown',
+          code: 401
+        },
         mediation_not_allowed: {
           iri: 'http://purl.org/net/sword/error/MediationNotAllowed',
           code: 412
