@@ -7,17 +7,25 @@ module WillowSword
       return true unless WillowSword.config.authorize_request
 
       api_key = @headers.fetch(:api_key, nil)
-      message =
-        if api_key.present?
-          @current_user = User.find_by(api_key: api_key)
-          'Not authorized. API key not found.' # not used if user is allowed
-        else
-          'Not authorized. API key not available.'
-        end
+      unless api_key.present?
+        @error = WillowSword::Error.new('Not authorized. API key not available.', :unauthenticated)
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
+        return
+      end
+
+      @current_user = User.find_by(api_key: api_key)
+      if @current_user.blank?
+        @error = WillowSword::Error.new('Not authorized. API key not found.', :unauthenticated)
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
+        return
+      end
 
       return true if allowed_access? && allowed_on_behalf?
 
-      @error = WillowSword::Error.new(message, :target_owner_unknown) unless @error.present?
+      @error ||= WillowSword::Error.new(
+        'Not authorized. You do not have access to this repository.',
+        :target_owner_unknown
+      )
       render 'willow_sword/shared/error', formats: [:xml], status: @error.code
     end
 

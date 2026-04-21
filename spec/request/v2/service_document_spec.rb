@@ -34,18 +34,40 @@ RSpec.describe 'SWORD Service Document', type: :request do
       end
 
       context 'with invalid API key' do
-        it 'returns 403 Forbidden' do
+        it 'returns 401 Unauthorized' do
           get '/sword/v2/service_document', headers: { 'Api-key' => 'invalid' }
 
-          expect(response).to have_http_status(:forbidden)
+          expect(response).to have_http_status(:unauthorized)
         end
       end
 
       context 'with no API key' do
-        it 'returns 403 Forbidden' do
+        it 'returns 401 Unauthorized' do
           get '/sword/v2/service_document'
 
+          expect(response).to have_http_status(:unauthorized)
+        end
+      end
+
+      # Mirrors Hyku multitenant behavior: global User row + api_key, but no repository
+      # roles for the current tenant (see authorize_request + allowed_access?).
+      context 'when Api-key matches a user who is not in the registered repository set' do
+        let(:denied_user) { create(:admin, email: 'no_repo_access@example.com', api_key: 'denied_key') }
+
+        before do
+          allow(User).to receive(:find_by).and_wrap_original do |method, *args, **kwargs|
+            kwargs[:api_key] == 'denied_key' ? denied_user : method.call(*args, **kwargs)
+          end
+          allow(denied_user).to receive(:in?).and_return(false)
+        end
+
+        it 'returns 403 Forbidden with a repository access message' do
+          get '/sword/v2/service_document', headers: { 'Api-key' => 'denied_key' }
+
           expect(response).to have_http_status(:forbidden)
+          expect(doc.at_xpath('//*[local-name()="summary"]').text).to include(
+            'do not have access to this repository'
+          )
         end
       end
     end
