@@ -34,18 +34,20 @@ RSpec.describe 'SWORD Service Document', type: :request do
       end
 
       context 'with invalid API key' do
-        it 'returns 401 Unauthorized' do
+        it 'returns 401 Unauthorized with API key not found' do
           get '/sword/v2/service_document', headers: { 'Api-key' => 'invalid' }
 
           expect(response).to have_http_status(:unauthorized)
+          expect(doc.at_xpath('//*[local-name()="summary"]').text).to include('API key not found')
         end
       end
 
       context 'with no API key' do
-        it 'returns 401 Unauthorized' do
+        it 'returns 401 Unauthorized with no API key provided' do
           get '/sword/v2/service_document'
 
           expect(response).to have_http_status(:unauthorized)
+          expect(doc.at_xpath('//*[local-name()="summary"]').text).to include('No API key provided')
         end
       end
 

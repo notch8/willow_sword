@@ -8,7 +8,7 @@ module WillowSword
 
       api_key = @headers.fetch(:api_key, nil)
       unless api_key.present?
-        @error = WillowSword::Error.new('Not authorized. API key not available.', :unauthenticated)
+        @error = WillowSword::Error.new('Not authorized. No API key provided.', :unauthenticated)
         render 'willow_sword/shared/error', formats: [:xml], status: @error.code
         return
       end
