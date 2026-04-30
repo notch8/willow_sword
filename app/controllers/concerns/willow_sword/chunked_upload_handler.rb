@@ -265,16 +265,27 @@ module WillowSword
     end
 
     def read_manifest(upload_id)
-      path = manifest_path(upload_id)
-      return nil unless File.exist?(path)
-      JSON.parse(File.read(path), symbolize_names: true)
+      with_manifest_lock(upload_id) do
+        path = manifest_path(upload_id)
+        return nil unless File.exist?(path)
+        JSON.parse(File.read(path), symbolize_names: true)
+      end
     end
 
     def write_manifest(upload_id, manifest)
-      File.open(manifest_path(upload_id), 'w') do |f|
-        f.flock(File::LOCK_EX)
-        f.write(JSON.generate(manifest))
-        f.flock(File::LOCK_UN)
+      path = manifest_path(upload_id)
+      tmp = File.join(upload_path(upload_id), ".manifest.#{SecureRandom.hex(4)}.tmp")
+
+      begin
+        File.open(tmp, 'w') do |f|
+          f.write(JSON.generate(manifest))
+          f.flush
+          f.fsync
+        end
+        File.rename(tmp, path)
+      rescue StandardError
+        FileUtils.rm_f(tmp)
+        raise
       end
     end
 

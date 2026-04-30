@@ -5,10 +5,12 @@ RSpec.describe 'SWORD Chunked Deposit (end-to-end)', type: :request do
 
   before do
     create(:admin, email: 'admin@example.com', api_key: 'test')
+    @previous_chunked_upload_path = WillowSword.setup.chunked_upload_path
     WillowSword.setup.chunked_upload_path = upload_base
   end
 
   after do
+    WillowSword.setup.chunked_upload_path = @previous_chunked_upload_path
     FileUtils.rm_rf(upload_base)
   end
 

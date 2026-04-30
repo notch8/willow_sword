@@ -51,13 +51,19 @@ module WillowSword
       def perform_staging_initiation
         metadata_file = save_staging_metadata
 
-        @staging_id = initiate_staging(
-          work_id: params[:work_id],
-          metadata_path: metadata_file,
-          filename: @headers[:filename],
-          md5: @headers[:md5hash],
-          user_id: @current_user&.id
-        )
+        begin
+          @staging_id = initiate_staging(
+            work_id: params[:work_id],
+            metadata_path: metadata_file,
+            filename: @headers[:filename],
+            md5: @headers[:md5hash],
+            user_id: @current_user&.id
+          )
+        ensure
+          # Clean up the temp metadata file; initiate_staging already copied it into staging dir
+          FileUtils.rm_rf(File.dirname(metadata_file)) if metadata_file
+        end
+
         @staging_manifest = upload_status(@staging_id)
         @staging_href = v2_file_set_url(@staging_id)
 
@@ -117,34 +123,36 @@ module WillowSword
           return render_sword_error("Work #{manifest[:work_id]} not found", :bad_request)
         end
 
-        # Set up files from the assembled payload
+        # Set up files from the assembled payload (cp, not mv, so staging is intact on failure)
         payload_path = upload_file_path(staging_id)
         filename = upload_filename(staging_id) || 'payload'
 
         finalize_dir = File.join('tmp/data', SecureRandom.uuid, 'contents')
         FileUtils.mkdir_p(finalize_dir)
-        dest = File.join(finalize_dir, filename)
-        FileUtils.mv(payload_path, dest)
-        @files = [dest]
 
-        # Parse staged metadata
-        metadata_path = staging_metadata_path(staging_id)
-        if metadata_path
-          parse_metadata(metadata_path, false)
-        else
-          @attributes = {}
+        begin
+          dest = File.join(finalize_dir, filename)
+          FileUtils.cp(payload_path, dest)
+          @files = [dest]
+
+          # Parse staged metadata
+          metadata_path = staging_metadata_path(staging_id)
+          if metadata_path
+            parse_metadata(metadata_path, false)
+          else
+            @attributes = {}
+          end
+
+          # Create the Hyrax file set (same flow as perform_create)
+          upload_files unless @files.blank?
+          create_file_set
+
+          xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
+          render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :created
+        ensure
+          cancel_upload(staging_id)
+          FileUtils.rm_rf(File.dirname(finalize_dir))
         end
-
-        # Create the Hyrax file set (same flow as perform_create)
-        upload_files unless @files.blank?
-        create_file_set
-
-        # Clean up
-        cancel_upload(staging_id)
-        FileUtils.rm_rf(File.dirname(finalize_dir))
-
-        xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
-        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :created
       end
 
       # --- Shared helpers ---
@@ -165,7 +173,7 @@ module WillowSword
         case action_name
         when 'create'
           find_work_by_query(params[:work_id])
-          render_work_not_found if @object.nil?
+          render_work_not_found and return if @object.nil?
         when 'show', 'update'
           # Check for staging entry first, then fall back to real Hyrax file set
           @staging_manifest = upload_status(params[:id])
@@ -174,12 +182,14 @@ module WillowSword
             @staging_href = v2_file_set_url(@staging_id)
           else
             @file_set = find_file_set
-            render_file_set_not_found if @file_set.nil?
+            render_file_set_not_found and return if @file_set.nil?
           end
         end
       end
 
       def authorize_action
+        return if performed?
+
         case action_name
         when 'create'
           authorize! :create, @object
