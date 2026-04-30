@@ -27,41 +27,13 @@ RSpec.describe WillowSword::V2::WorksController, type: :controller do
       controller.validate_and_save_request
     end
 
-    context 'with Upload-References header' do
-      before do
-        controller.instance_variable_set(:@headers, { upload_references: 'upload-123', on_behalf_of: nil })
-        allow(controller).to receive(:resolve_chunked_uploads).and_return(true)
-        allow(controller).to receive(:resolve_metadata_from_request)
-        allow(controller).to receive(:organize_referenced_files)
-      end
+    it 'routes binary content types to save_binary_data' do
+      controller.instance_variable_set(:@headers, { on_behalf_of: nil })
+      allow(controller.request).to receive(:content_type).and_return('application/octet-stream')
 
-      it 'skips normal content-type routing and uses chunked upload path' do
-        expect(controller).not_to receive(:save_multipart_data)
-        expect(controller).not_to receive(:save_binary_data)
-        expect(controller).not_to receive(:save_atom_xml_data)
-        expect(controller).to receive(:resolve_chunked_uploads).and_return(true)
-        expect(controller).to receive(:bag_request)
+      expect(controller).to receive(:save_binary_data).and_return(true)
 
-        controller.validate_and_save_request
-      end
-
-      it 'returns false if resolve_chunked_uploads fails' do
-        allow(controller).to receive(:resolve_chunked_uploads).and_return(false)
-
-        expect(controller.validate_and_save_request).to be false
-      end
-    end
-
-    context 'without Upload-References header' do
-      it 'falls through to normal content-type routing' do
-        controller.instance_variable_set(:@headers, { upload_references: nil, on_behalf_of: nil })
-        allow(controller.request).to receive(:content_type).and_return('application/octet-stream')
-
-        expect(controller).to receive(:save_binary_data).and_return(true)
-        expect(controller).not_to receive(:resolve_chunked_uploads)
-
-        controller.validate_and_save_request
-      end
+      controller.validate_and_save_request
     end
   end
 end

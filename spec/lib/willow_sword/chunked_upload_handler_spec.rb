@@ -184,6 +184,105 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
     end
   end
 
+  describe '#initiate_staging' do
+    it 'creates a staging directory with awaiting_upload status' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'test.zip', user_id: 42)
+
+      expect(staging_id).to be_present
+      expect(File.directory?(File.join(upload_base, staging_id))).to be true
+
+      manifest = JSON.parse(File.read(File.join(upload_base, staging_id, 'manifest.json')), symbolize_names: true)
+      expect(manifest[:work_id]).to eq('work-1')
+      expect(manifest[:filename]).to eq('test.zip')
+      expect(manifest[:user_id]).to eq(42)
+      expect(manifest[:total_size]).to be_nil
+      expect(manifest[:bytes_received]).to eq(0)
+      expect(manifest[:status]).to eq('awaiting_upload')
+    end
+
+    it 'copies metadata file into the staging directory' do
+      metadata_dir = Dir.mktmpdir
+      metadata_path = File.join(metadata_dir, 'metadata.xml')
+      File.write(metadata_path, '<metadata><title>Test</title></metadata>')
+
+      staging_id = handler.initiate_staging(work_id: 'work-1', metadata_path: metadata_path, user_id: 1)
+
+      staged_metadata = File.join(upload_base, staging_id, 'metadata.xml')
+      expect(File.exist?(staged_metadata)).to be true
+      expect(File.read(staged_metadata)).to include('<title>Test</title>')
+    ensure
+      FileUtils.rm_rf(metadata_dir)
+    end
+  end
+
+  describe '#activate_staging' do
+    it 'transitions from awaiting_upload to in_progress with total_size' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'test.bin', user_id: 1)
+
+      handler.activate_staging(upload_id: staging_id, total_size: 1000)
+
+      manifest = handler.upload_status(staging_id)
+      expect(manifest[:status]).to eq('in_progress')
+      expect(manifest[:total_size]).to eq(1000)
+    end
+
+    it 'rejects total_size exceeding max' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'test.bin', user_id: 1)
+
+      expect {
+        handler.activate_staging(upload_id: staging_id, total_size: 3 * 1024 * 1024 * 1024)
+      }.to raise_error(WillowSword::SwordError) { |e| expect(e.sword_error.code).to eq(413) }
+    end
+  end
+
+  describe '#staging_entry?' do
+    it 'returns true for an existing staging entry' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', user_id: 1)
+      expect(handler.staging_entry?(staging_id)).to be true
+    end
+
+    it 'returns false for nonexistent entry' do
+      expect(handler.staging_entry?('nonexistent')).to be false
+    end
+  end
+
+  describe '#staging_metadata_path' do
+    it 'returns the path when metadata exists' do
+      metadata_dir = Dir.mktmpdir
+      metadata_path = File.join(metadata_dir, 'metadata.xml')
+      File.write(metadata_path, '<metadata/>')
+
+      staging_id = handler.initiate_staging(work_id: 'work-1', metadata_path: metadata_path, user_id: 1)
+
+      result = handler.staging_metadata_path(staging_id)
+      expect(result).to be_present
+      expect(File.exist?(result)).to be true
+    ensure
+      FileUtils.rm_rf(metadata_dir)
+    end
+
+    it 'returns nil when no metadata was staged' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', user_id: 1)
+      expect(handler.staging_metadata_path(staging_id)).to be_nil
+    end
+  end
+
+  describe 'staging + chunk append integration' do
+    it 'accepts chunks after activate_staging' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'test.bin', user_id: 1)
+      handler.activate_staging(upload_id: staging_id, total_size: 10)
+
+      result = handler.append_chunk(
+        upload_id: staging_id,
+        body_stream: StringIO.new('0123456789'),
+        content_range: 'bytes 0-9/10'
+      )
+
+      expect(result[:complete]).to be true
+      expect(File.read(handler.upload_file_path(staging_id))).to eq('0123456789')
+    end
+  end
+
   describe '#cleanup_stale_uploads' do
     it 'removes uploads older than expiry' do
       uid = handler.initiate_upload(filename: 'old.zip', total_size: 100, user_id: 1)
