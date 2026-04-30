@@ -104,6 +104,57 @@ module WillowSword
       manifest&.dig(:filename)
     end
 
+    def initiate_staging(work_id:, metadata_path: nil, filename: nil, md5: nil, user_id: nil)
+      staging_id = SecureRandom.uuid
+      staging_dir = upload_path(staging_id)
+      FileUtils.mkdir_p(staging_dir)
+
+      if metadata_path.present? && File.exist?(metadata_path)
+        FileUtils.cp(metadata_path, File.join(staging_dir, 'metadata.xml'))
+      end
+
+      manifest = {
+        work_id: work_id,
+        filename: filename,
+        total_size: nil,
+        md5: md5,
+        user_id: user_id,
+        created_at: Time.current.iso8601,
+        bytes_received: 0,
+        status: 'awaiting_upload'
+      }
+
+      write_manifest(staging_id, manifest)
+      staging_id
+    end
+
+    def activate_staging(upload_id:, total_size:)
+      with_manifest_lock(upload_id) do
+        manifest = read_manifest(upload_id)
+        raise WillowSword::SwordError.new(WillowSword::Error.new("Upload not found", :upload_not_found)) unless manifest
+
+        max = WillowSword.setup.max_total_upload_size
+        if total_size > max
+          raise WillowSword::SwordError.new(WillowSword::Error.new(
+            "Total size #{total_size} exceeds maximum #{max}", :max_upload_size_exceeded
+          ))
+        end
+
+        manifest[:total_size] = total_size
+        manifest[:status] = 'in_progress'
+        write_manifest(upload_id, manifest)
+      end
+    end
+
+    def staging_entry?(upload_id)
+      read_manifest(upload_id).present?
+    end
+
+    def staging_metadata_path(upload_id)
+      path = File.join(upload_path(upload_id), 'metadata.xml')
+      File.exist?(path) ? path : nil
+    end
+
     def cancel_upload(upload_id)
       dir = upload_path(upload_id)
       FileUtils.rm_rf(dir) if File.directory?(dir)
@@ -135,8 +186,6 @@ module WillowSword
       end
     end
 
-    private
-
     def parse_content_range(header)
       # Format: "bytes START-END/TOTAL"
       match = header&.match(/\Abytes (\d+)-(\d+)\/(\d+)\z/)
@@ -150,6 +199,8 @@ module WillowSword
         total: match[3].to_i
       }
     end
+
+    private
 
     def validate_chunk!(manifest, range)
       # JSON may return integers as string in some runtimes; coerce for comparisons
@@ -193,7 +244,7 @@ module WillowSword
         ))
       end
 
-      if manifest[:status] != 'in_progress'
+      unless %w[in_progress awaiting_upload].include?(manifest[:status])
         raise WillowSword::SwordError.new(WillowSword::Error.new(
           "Upload is not in progress (status: #{manifest[:status]})",
           :bad_request
