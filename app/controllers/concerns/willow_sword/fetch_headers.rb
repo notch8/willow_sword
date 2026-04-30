@@ -17,6 +17,9 @@ module WillowSword
       fetch_slug
       fetch_hyrax_work_model
       fetch_api_key
+      fetch_upload_references
+      fetch_upload_total
+      fetch_content_range
     end
 
     def fetch_content_type
@@ -63,6 +66,19 @@ module WillowSword
 
     def fetch_api_key
       @headers[:api_key] = request.headers.fetch('Api-key', nil)
+    end
+
+    def fetch_upload_references
+      @headers[:upload_references] = request.headers.fetch('Upload-References', nil)
+    end
+
+    def fetch_upload_total
+      val = request.headers.fetch('Upload-Total', nil)
+      @headers[:upload_total] = val.present? ? val.to_i : nil
+    end
+
+    def fetch_content_range
+      @headers[:content_range] = request.headers.fetch('Content-Range', nil)
     end
 
     # Looks for the lazy migration convention if it exists

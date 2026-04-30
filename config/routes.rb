@@ -26,6 +26,8 @@ WillowSword::Engine.routes.draw do
       resources :works, only: [] do
         resources :file_sets, only: [:create]
       end
+
+      resources :uploads, only: [:create, :show, :update, :destroy]
     end
   end
 end

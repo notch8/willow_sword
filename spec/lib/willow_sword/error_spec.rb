@@ -14,6 +14,9 @@ RSpec.describe WillowSword::Error do
       expect(error.errors).to include(:mediation_not_allowed)
       expect(error.errors).to include(:method_not_allowed)
       expect(error.errors).to include(:max_upload_size_exceeded)
+      expect(error.errors).to include(:chunk_sequence_error)
+      expect(error.errors).to include(:upload_not_found)
+      expect(error.errors).to include(:upload_incomplete)
       expect(error.errors).to include(:default)
     end
 
@@ -94,6 +97,30 @@ RSpec.describe WillowSword::Error do
       error = WillowSword::Error.new(msg, :max_upload_size_exceeded)
       expect(error.iri).to eq('http://purl.org/net/sword/error/MaxUploadSizeExceeded')
       expect(error.code).to eq 413
+      expect(error.message).to eq msg
+    end
+
+    it "should return error of type chunk_sequence_error" do
+      msg = 'chunk sequence error'
+      error = WillowSword::Error.new(msg, :chunk_sequence_error)
+      expect(error.iri).to eq('http://purl.org/net/sword/error/ErrorBadRequest')
+      expect(error.code).to eq 416
+      expect(error.message).to eq msg
+    end
+
+    it "should return error of type upload_not_found" do
+      msg = 'upload not found'
+      error = WillowSword::Error.new(msg, :upload_not_found)
+      expect(error.iri).to eq('http://purl.org/net/sword/error/ErrorBadRequest')
+      expect(error.code).to eq 404
+      expect(error.message).to eq msg
+    end
+
+    it "should return error of type upload_incomplete" do
+      msg = 'upload incomplete'
+      error = WillowSword::Error.new(msg, :upload_incomplete)
+      expect(error.iri).to eq('http://purl.org/net/sword/error/ErrorBadRequest')
+      expect(error.code).to eq 409
       expect(error.message).to eq msg
     end
 

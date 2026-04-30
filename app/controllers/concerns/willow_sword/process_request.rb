@@ -6,10 +6,24 @@ module WillowSword
     include WillowSword::BinaryDeposit
     include WillowSword::SaveData
     include WillowSword::ExtractMetadata
+    include WillowSword::ResolveUploads
 
     def validate_and_save_request
       # Choose based on content type
       return false unless validate_target_user
+
+      # Handle pre-uploaded chunked files referenced by Upload-References header
+      if @headers&.dig(:upload_references).present?
+        return false unless resolve_chunked_uploads
+        resolve_metadata_from_request
+        organize_referenced_files
+        if @file.present?
+          return false unless File.file?(@file) && validate_payload
+        end
+        bag_request
+        return true
+      end
+
       case request.content_type
       when /\Amultipart\/form-data/
         # multipart deposit
