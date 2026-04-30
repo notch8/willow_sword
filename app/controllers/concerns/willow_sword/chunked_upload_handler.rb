@@ -265,11 +265,11 @@ module WillowSword
     end
 
     def read_manifest(upload_id)
-      with_manifest_lock(upload_id) do
-        path = manifest_path(upload_id)
-        return nil unless File.exist?(path)
-        JSON.parse(File.read(path), symbolize_names: true)
-      end
+      # No lock needed: write_manifest uses atomic temp-file + rename,
+      # so readers always see a complete JSON file.
+      path = manifest_path(upload_id)
+      return nil unless File.exist?(path)
+      JSON.parse(File.read(path), symbolize_names: true)
     end
 
     def write_manifest(upload_id, manifest)
