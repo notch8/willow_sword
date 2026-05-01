@@ -1,0 +1,74 @@
+name: Test
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby: ['3.2', '3.3']
+    name: Unit (Ruby ${{ matrix.ruby }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+
+      - name: Run specs
+        run: bundle exec rspec
+
+  integration:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: dassie
+            compose_file: docker-compose.yml
+            gemfile: Gemfile.dassie
+          - name: dassie-flexible
+            compose_file: docker-compose.yml:docker-compose.flexible.yml
+            gemfile: Gemfile.dassie
+    name: Integration (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start services
+        env:
+          COMPOSE_FILE: ${{ matrix.compose_file }}
+        run: docker compose up -d --build web
+
+      - name: Wait for Puma
+        env:
+          COMPOSE_FILE: ${{ matrix.compose_file }}
+        run: |
+          for i in $(seq 1 60); do
+            if curl -s --max-time 5 -o /dev/null http://127.0.0.1:3000/ 2>/dev/null; then
+              exit 0
+            fi
+            sleep 10
+          done
+          echo '--- web logs ---'
+          docker compose logs web | tail -200
+          exit 1
+
+      - name: Run request/controller specs
+        env:
+          COMPOSE_FILE: ${{ matrix.compose_file }}
+        run: >-
+          docker compose exec -T
+          -w /willow_sword web
+          bash -lc 'BUNDLE_GEMFILE=/app/samvera/hyrax-webapp/${{ matrix.gemfile }} bundle exec rspec'
+
+      - name: Dump docker logs
+        if: always()
+        env:
+          COMPOSE_FILE: ${{ matrix.compose_file }}
+        run: docker compose logs --tail=200

@@ -49,7 +49,7 @@ RSpec.describe 'SWORD Works', type: :request do
       valkyrie_create(:hyrax_collection, id: 'collection-2', title: ['Collection Two'])
     end
 
-    let!(:admin_set_id) { valkyrie_create(:default_hyrax_admin_set).id.to_s }
+    let!(:admin_set_id) { Hyrax::AdminSetCreateService.find_or_create_default_admin_set.id.to_s }
 
     context 'with metadata only' do
       context 'with binary data method' do
@@ -346,7 +346,8 @@ RSpec.describe 'SWORD Works', type: :request do
 
   describe 'PUT /sword/v2/works/:id' do
     include ActiveSupport::Testing::TimeHelpers
-    let(:work) { valkyrie_create(:monograph, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
+    let(:monograph_extras) { flexible_metadata? ? {} : { record_info: ['Some info'] } }
+    let(:work) { valkyrie_create(:monograph, title: ['Original Title'], creator: ['Original Creator'], **monograph_extras) }
     let(:headers) do
       {
         'Content-Type' => 'application/xml',
@@ -399,8 +400,8 @@ RSpec.describe 'SWORD Works', type: :request do
     end
 
     context 'when updating the member_ids' do
-      let!(:work) { valkyrie_create(:monograph, title: ['Original Title'], creator: ['somebody'], member_ids: ['old-member-id'], record_info: ['some info']) }
-      let!(:new_child_work) { valkyrie_create(:monograph, id: 'new-child-work-id', title: ['Child Work'], creator: ['somebody'], record_info: ['some info']) }
+      let!(:work) { valkyrie_create(:monograph, title: ['Original Title'], creator: ['somebody'], member_ids: ['old-member-id'], **monograph_extras) }
+      let!(:new_child_work) { valkyrie_create(:monograph, id: 'new-child-work-id', title: ['Child Work'], creator: ['somebody'], **monograph_extras) }
       let(:params) do
         <<~XML
           <metadata xmlns="http://www.w3.org/2005/Atom">
@@ -420,7 +421,7 @@ RSpec.describe 'SWORD Works', type: :request do
 
     context 'when updating the visibility' do
       context 'on a work with an embargo' do
-        let(:work) { valkyrie_create(:monograph, :under_embargo, :with_member_file_sets, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
+        let(:work) { valkyrie_create(:monograph, :under_embargo, :with_member_file_sets, title: ['Original Title'], creator: ['Original Creator'], **monograph_extras) }
         let(:params) do
           <<~XML
             <metadata xmlns="http://www.w3.org/2005/Atom">
@@ -458,7 +459,7 @@ RSpec.describe 'SWORD Works', type: :request do
       end
 
       context 'on a work with a lease' do
-        let(:work) { valkyrie_create(:monograph, :under_lease, :with_one_file_set, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
+        let(:work) { valkyrie_create(:monograph, :under_lease, :with_one_file_set, title: ['Original Title'], creator: ['Original Creator'], **monograph_extras) }
         let(:params) do
           <<~XML
             <metadata xmlns="http://www.w3.org/2005/Atom">
