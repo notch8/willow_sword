@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby: ['3.1', '3.2']
+        ruby: ['3.2', '3.3']
     name: Unit (Ruby ${{ matrix.ruby }})
     steps:
       - uses: actions/checkout@v4
@@ -30,10 +30,12 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: dassie-default
+          - name: dassie
             compose_file: docker-compose.yml
-          - name: dassie-flexible-metadata
+            gemfile: Gemfile.dassie
+          - name: dassie-flexible
             compose_file: docker-compose.yml:docker-compose.flexible.yml
+            gemfile: Gemfile.dassie
     name: Integration (${{ matrix.name }})
     steps:
       - uses: actions/checkout@v4
@@ -63,7 +65,7 @@ jobs:
         run: >-
           docker compose exec -T
           -w /willow_sword web
-          bash -lc 'BUNDLE_GEMFILE=/app/samvera/hyrax-webapp/Gemfile.dassie bundle exec rspec'
+          bash -lc 'BUNDLE_GEMFILE=/app/samvera/hyrax-webapp/${{ matrix.gemfile }} bundle exec rspec'
 
       - name: Dump docker logs
         if: always()

@@ -1,9 +1,6 @@
 # Merge with docker-compose.yml to run Dassie with Hyrax flexible metadata (M3 profile).
 #
 # Usage: docker compose -f docker-compose.yml -f docker-compose.flexible.yml up -d --build
-#
-# Class names align with .dassie + VALKYRIE_TRANSITION=true (AdminSetResource, CollectionResource,
-# Hyrax::FileSet); work types match registered concerns (GenericWork AF, Monograph Valkyrie).
 version: '3.8'
 services:
   web:
@@ -33,5 +30,4 @@ services:
              BUNDLE_GEMFILE=Gemfile.dassie bundle install &&
              bundle exec rails generate willow_sword:install &&
              bundle exec rails db:migrate &&
-             SEED_DASSIE=true bundle exec rails db:seed &&
              bundle exec puma -v -b tcp://0.0.0.0:3000"

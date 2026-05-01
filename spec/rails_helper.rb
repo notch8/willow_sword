@@ -6,6 +6,10 @@ def dockerized?
   File.exist?('/app/samvera/hyrax-webapp/config/environment.rb')
 end
 
+def flexible_metadata?
+  ENV['HYRAX_FLEXIBLE'] == 'true'
+end
+
 if dockerized?
   require '/app/samvera/hyrax-webapp/config/environment'
 else

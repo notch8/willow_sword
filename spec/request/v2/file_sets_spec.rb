@@ -22,7 +22,8 @@ RSpec.describe 'SWORD FileSets', type: :request do
 
   describe 'POST /sword/v2/works/:id/file_sets' do
     before do
-      valkyrie_create(:hyrax_work, :under_embargo, id: 'work-1', title: ['Test Work'])
+      factory = flexible_metadata? ? :monograph : :hyrax_work
+      valkyrie_create(factory, :under_embargo, id: 'work-1', title: ['Test Work'])
     end
 
     let(:headers) do
@@ -84,6 +85,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
   end
 
   describe 'PUT /sword/v2/file_sets/:id' do
+    let(:monograph_extras) { flexible_metadata? ? {} : { record_info: ['Some info'] } }
     let!(:file_set) { valkyrie_create(:hyrax_file_set, :with_files, id: 'file-set-123', title: ['Test File Set'], creator: ['admin@example.com']) }
     let(:headers) do
       {
@@ -128,7 +130,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
 
     context 'when updating visibility' do
       context 'on a fileset with an embargo' do
-        let(:work) { valkyrie_create(:monograph, :under_embargo, :with_member_file_sets, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
+        let(:work) { valkyrie_create(:monograph, :under_embargo, :with_member_file_sets, title: ['Original Title'], creator: ['Original Creator'], **monograph_extras) }
         let(:params) do
           <<~XML
             <metadata>
@@ -167,7 +169,7 @@ RSpec.describe 'SWORD FileSets', type: :request do
       end
 
       context 'on a fileset with a lease' do
-        let(:work) { valkyrie_create(:monograph, :under_lease, :with_member_file_sets, title: ['Original Title'], creator: ['Original Creator'], record_info: ['Some info']) }
+        let(:work) { valkyrie_create(:monograph, :under_lease, :with_member_file_sets, title: ['Original Title'], creator: ['Original Creator'], **monograph_extras) }
         let(:params) do
           <<~XML
             <metadata>
