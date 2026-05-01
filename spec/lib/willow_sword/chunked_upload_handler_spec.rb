@@ -16,25 +16,15 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
     FileUtils.rm_rf(upload_base)
   end
 
-  describe '#initiate_upload' do
-    it 'creates a staging directory with a manifest' do
-      upload_id = handler.initiate_upload(filename: 'test.zip', total_size: 1000, md5: 'abc123', user_id: 42)
-
-      expect(upload_id).to be_present
-      expect(File.directory?(File.join(upload_base, upload_id))).to be true
-
-      manifest = JSON.parse(File.read(File.join(upload_base, upload_id, 'manifest.json')), symbolize_names: true)
-      expect(manifest[:filename]).to eq('test.zip')
-      expect(manifest[:total_size]).to eq(1000)
-      expect(manifest[:md5]).to eq('abc123')
-      expect(manifest[:user_id]).to eq(42)
-      expect(manifest[:bytes_received]).to eq(0)
-      expect(manifest[:status]).to eq('in_progress')
-    end
+  # Matches production: POST file_sets (In-Progress) + first PUT (Content-Range activates total_size).
+  def staging_id_ready_for_chunks(filename:, total_size:, md5: nil, user_id: 1)
+    uid = handler.initiate_staging(work_id: 'work-1', filename: filename, md5: md5, user_id: user_id)
+    handler.activate_staging(upload_id: uid, total_size: total_size)
+    uid
   end
 
   describe '#append_chunk' do
-    let(:upload_id) { handler.initiate_upload(filename: 'test.bin', total_size: 20, user_id: 1) }
+    let(:upload_id) { staging_id_ready_for_chunks(filename: 'test.bin', total_size: 20, user_id: 1) }
 
     it 'appends data and updates bytes_received' do
       body = StringIO.new('0123456789')
@@ -119,14 +109,14 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
       it 'validates checksum on completion' do
         data = 'hello world!12345678'
         md5 = Digest::MD5.hexdigest(data)
-        uid = handler.initiate_upload(filename: 'test.bin', total_size: 20, md5: md5, user_id: 1)
+        uid = staging_id_ready_for_chunks(filename: 'test.bin', total_size: 20, md5: md5, user_id: 1)
 
         result = handler.append_chunk(upload_id: uid, body_stream: StringIO.new(data), content_range: "bytes 0-19/20")
         expect(result[:complete]).to be true
       end
 
       it 'raises on checksum mismatch' do
-        uid = handler.initiate_upload(filename: 'test.bin', total_size: 5, md5: 'wrong', user_id: 1)
+        uid = staging_id_ready_for_chunks(filename: 'test.bin', total_size: 5, md5: 'wrong', user_id: 1)
 
         expect {
           handler.append_chunk(upload_id: uid, body_stream: StringIO.new('hello'), content_range: 'bytes 0-4/5')
@@ -137,7 +127,7 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
 
   describe '#upload_status' do
     it 'returns manifest data for existing upload' do
-      uid = handler.initiate_upload(filename: 'test.zip', total_size: 100, user_id: 1)
+      uid = staging_id_ready_for_chunks(filename: 'test.zip', total_size: 100, user_id: 1)
       status = handler.upload_status(uid)
 
       expect(status[:filename]).to eq('test.zip')
@@ -152,12 +142,12 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
 
   describe '#upload_complete?' do
     it 'returns false for in-progress upload' do
-      uid = handler.initiate_upload(filename: 'test.bin', total_size: 10, user_id: 1)
+      uid = staging_id_ready_for_chunks(filename: 'test.bin', total_size: 10, user_id: 1)
       expect(handler.upload_complete?(uid)).to be false
     end
 
     it 'returns true for completed upload' do
-      uid = handler.initiate_upload(filename: 'test.bin', total_size: 5, user_id: 1)
+      uid = staging_id_ready_for_chunks(filename: 'test.bin', total_size: 5, user_id: 1)
       handler.append_chunk(upload_id: uid, body_stream: StringIO.new('hello'), content_range: 'bytes 0-4/5')
       expect(handler.upload_complete?(uid)).to be true
     end
@@ -165,7 +155,7 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
 
   describe '#cancel_upload' do
     it 'removes the staging directory' do
-      uid = handler.initiate_upload(filename: 'test.bin', total_size: 10, user_id: 1)
+      uid = staging_id_ready_for_chunks(filename: 'test.bin', total_size: 10, user_id: 1)
       expect(File.directory?(File.join(upload_base, uid))).to be true
 
       handler.cancel_upload(uid)
@@ -179,7 +169,7 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
 
   describe '#upload_filename' do
     it 'returns the filename from the manifest' do
-      uid = handler.initiate_upload(filename: 'deposit.zip', total_size: 100, user_id: 1)
+      uid = staging_id_ready_for_chunks(filename: 'deposit.zip', total_size: 100, user_id: 1)
       expect(handler.upload_filename(uid)).to eq('deposit.zip')
     end
   end
@@ -285,7 +275,7 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
 
   describe '#cleanup_stale_uploads' do
     it 'removes uploads older than expiry' do
-      uid = handler.initiate_upload(filename: 'old.zip', total_size: 100, user_id: 1)
+      uid = staging_id_ready_for_chunks(filename: 'old.zip', total_size: 100, user_id: 1)
       manifest_path = File.join(upload_base, uid, 'manifest.json')
 
       # Backdate the manifest
@@ -298,7 +288,7 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
     end
 
     it 'keeps recent uploads' do
-      uid = handler.initiate_upload(filename: 'new.zip', total_size: 100, user_id: 1)
+      uid = staging_id_ready_for_chunks(filename: 'new.zip', total_size: 100, user_id: 1)
 
       handler.cleanup_stale_uploads
       expect(File.directory?(File.join(upload_base, uid))).to be true

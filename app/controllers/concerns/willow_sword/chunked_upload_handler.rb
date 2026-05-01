@@ -7,25 +7,6 @@ module WillowSword
   module ChunkedUploadHandler
     extend ActiveSupport::Concern
 
-    def initiate_upload(filename:, total_size:, md5: nil, user_id: nil)
-      upload_id = SecureRandom.uuid
-      upload_dir = upload_path(upload_id)
-      FileUtils.mkdir_p(upload_dir)
-
-      manifest = {
-        filename: filename,
-        total_size: total_size,
-        md5: md5,
-        user_id: user_id,
-        created_at: Time.current.iso8601,
-        bytes_received: 0,
-        status: 'in_progress'
-      }
-
-      write_manifest(upload_id, manifest)
-      upload_id
-    end
-
     def append_chunk(upload_id:, body_stream:, content_range:)
       range = parse_content_range(content_range)
       payload_path = File.join(upload_path(upload_id), 'payload')

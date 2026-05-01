@@ -1,15 +1,4 @@
 module WillowSword
-  # Raiseable exception that carries SWORD error type info.
-  # Can be used with rescue_from to render the correct HTTP status.
-  class SwordError < StandardError
-    attr_reader :sword_error
-
-    def initialize(sword_error)
-      @sword_error = sword_error
-      super(sword_error.message)
-    end
-  end
-
   class Error
     attr_reader :errors, :message, :iri, :code
 
@@ -58,18 +47,6 @@ module WillowSword
         max_upload_size_exceeded: {
           iri: 'http://purl.org/net/sword/error/MaxUploadSizeExceeded',
           code: 413
-        },
-        chunk_sequence_error: {
-          iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
-          code: 416
-        },
-        upload_not_found: {
-          iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
-          code: 404
-        },
-        upload_incomplete: {
-          iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
-          code: 409
         },
         default: {
           iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
