@@ -26,5 +26,14 @@ RSpec.describe WillowSword::V2::WorksController, type: :controller do
 
       controller.validate_and_save_request
     end
+
+    it 'routes binary content types to save_binary_data' do
+      controller.instance_variable_set(:@headers, { on_behalf_of: nil })
+      allow(controller.request).to receive(:content_type).and_return('application/octet-stream')
+
+      expect(controller).to receive(:save_binary_data).and_return(true)
+
+      controller.validate_and_save_request
+    end
   end
 end
