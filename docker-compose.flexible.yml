@@ -1,0 +1,37 @@
+# Merge with docker-compose.yml to run Dassie with Hyrax flexible metadata (M3 profile).
+#
+# Usage: docker compose -f docker-compose.yml -f docker-compose.flexible.yml up -d --build
+#
+# Class names align with .dassie + VALKYRIE_TRANSITION=true (AdminSetResource, CollectionResource,
+# Hyrax::FileSet); work types match registered concerns (GenericWork AF, Monograph Valkyrie).
+version: '3.8'
+services:
+  web:
+    # Full list required: Compose merge replaces sequences; partial env would drop DATABASE_URL etc.
+    environment:
+      - DATABASE_URL=postgresql://hyrax_user:hyrax_password@postgres/hyrax_test
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=hyrax_user
+      - DB_PASSWORD=hyrax_password
+      - DB_NAME=hyrax
+      - FCREPO_HOST=fcrepo
+      - FCREPO_PORT=8080
+      - FCREPO_REST_PATH=rest
+      - RAILS_ENV=test
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SOLR_HOST=solr
+      - SOLR_PORT=8983
+      - SOLR_URL=http://solr:8983/solr/hydra-development
+      - VALKYRIE_TRANSITION=true
+      - HYRAX_FLEXIBLE=true
+      - HYRAX_FLEXIBLE_CLASSES=AdminSetResource,CollectionResource,Hyrax::FileSet,GenericWork,Monograph
+      - HYRAX_DISABLE_INCLUDE_METADATA=true
+    command: >
+      sh -c "echo \"gem 'willow_sword', path: '/willow_sword'\" >> Gemfile &&
+             BUNDLE_GEMFILE=Gemfile.dassie bundle install &&
+             bundle exec rails generate willow_sword:install &&
+             bundle exec rails db:migrate &&
+             SEED_DASSIE=true bundle exec rails db:seed &&
+             bundle exec puma -v -b tcp://0.0.0.0:3000"
