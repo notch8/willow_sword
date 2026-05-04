@@ -99,6 +99,7 @@ module HykuCrosswalkHelper
       video_embed: 'https://www.youtube.com/embed/Znf73dsFdC8',
       is_child: nil,
       split_from_pdf_id: nil,
+      visibility: '',
       visibility_during_embargo: '',
       visibility_after_embargo: '',
       embargo_release_date: '',
