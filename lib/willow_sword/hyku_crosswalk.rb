@@ -114,6 +114,18 @@ module WillowSword
          rights_notes rights_statement subject title resource_type).select { |term| work.respond_to?(term) }
     end
 
+    # Convert the visibility to read either 'embargo' or 'lease' when active.
+    def handle_visibility(value)
+      case value
+      when work.try(:embargo)&.active? && work.try(:visibility_during_embargo)
+        'embargo'
+      when work.try(:lease)&.active? && work.try(:visibility_during_lease)
+        'lease'
+      else
+        value
+      end
+    end
+
     private
 
     # Takes the work's schema and returns a hash of predicate mappings for terms
@@ -146,7 +158,7 @@ module WillowSword
     # @returns [Array<String>] a list of Hyrax based visibility terms
     def visibility_terms
       %w(visibility_during_embargo visibility_after_embargo embargo_release_date
-         visibility_during_lease visibility_after_lease lease_expiration_date)
+         visibility_during_lease visibility_after_lease lease_expiration_date visibility)
     end
   end
 end
