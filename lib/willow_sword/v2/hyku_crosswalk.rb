@@ -48,21 +48,22 @@ module WillowSword
 
       # @returns [Array<String>] a list of auto generated system terms
       def system_terms
-        %w(id internal_resource created_at
+        @system_terms ||= %w(id internal_resource created_at
           updated_at new_record date_modified
           date_uploaded depositor state label).select { |term| terms_from_schema.include?(term) }
       end
 
       # @returns [Array<String>] a list of Dublin Core terms used in the object
       def dc_terms
-        (terms + system_terms).uniq.select do |term|
-          prefix_lookup_for(term) == 'dc' || prefix_lookup_for(term) == 'dcterms' || dc_terms_to_fallback_to_dc.include?(term)
+        @dc_terms ||= (terms + system_terms).uniq.select do |term|
+          prefix = prefix_lookup_for(term)
+          prefix == 'dc' || prefix == 'dcterms' || dc_terms_to_fallback_to_dc.include?(term)
         end
       end
 
       # @returns [Hash] a hash of term translations for the object's schema
       def term_translation_mappings
-        {
+        @term_translation_mappings ||= {
           'date_modified'          => 'modified',
           'date_uploaded'          => 'dateSubmitted',
           'depositor'              => 'dpt',
@@ -127,7 +128,7 @@ module WillowSword
       # @return [Array<String>] An array of Hyrax/Hyku terms that the object responds to
       #   that should be mapped to `dc` even if it's considered `dcterms` by Hyrax/Hyku.
       def dc_terms_to_fallback_to_dc
-        %w(contributor coverage creator date_created description format
+        @dc_terms_to_fallback_to_dc ||= %w(contributor coverage creator date_created description format
           identifier language publisher related_item_id rights_holder source
           rights_notes rights_statement subject title resource_type).select { |term| object.respond_to?(term) }
       end
@@ -160,7 +161,15 @@ module WillowSword
       end
 
       def add_metadata_to_xml(xml)
-        # Add h4csys, mainly system generated metadata
+        add_system_metadata_to_xml(xml)
+        add_settable_metadata_to_xml(xml)
+        add_dc_metadata_to_xml(xml)
+      end
+
+      private
+
+      # Renders system-generated metadata under the h4csys namespace.
+      def add_system_metadata_to_xml(xml)
         system_terms.each do |term|
           Array.wrap(@object.send(term)).each do |val|
             val = val.to_s
@@ -170,8 +179,10 @@ module WillowSword
             xml.tag!(:"#{prefix}:#{term}", val)
           end
         end
+      end
 
-        # Add h4cmeta, settable metadata
+      # Renders user-settable metadata under the h4cmeta namespace.
+      def add_settable_metadata_to_xml(xml)
         settable_terms.each do |term|
           Array.wrap(@object.send(term)).each do |val|
             val = val.to_s
@@ -182,21 +193,45 @@ module WillowSword
             xml.tag!(:"#{prefix}:#{term}", val)
           end
         end
+      end
 
-        # Add dc and dcterms
-        dc_terms.each do |term|
+      # Renders dc and dcterms metadata.
+      def add_dc_metadata_to_xml(xml)
+        simple_mappings = simple_dc_mappings_from_schema
+        qualified_mappings = qualified_dc_mappings_from_schema
+        schema_terms = (simple_mappings.keys + qualified_mappings.keys).uniq.select { |t| @object.respond_to?(t) }
+
+        (dc_terms + schema_terms).uniq.each do |term|
           Array.wrap(@object.send(term)).each do |val|
             val = val.to_s
             next if val.blank?
 
-            prefix = dc_terms_to_fallback_to_dc.include?(term) ? 'dc' : prefix_lookup_for(term)
-            translated_term = term_translation_mappings[term] || term
-            xml.tag!(:"#{prefix}:#{translated_term}", val)
+            render_dc_term(xml, term, val, simple_mappings, qualified_mappings)
           end
         end
       end
 
-      private
+      def render_dc_term(xml, term, val, simple_mappings, qualified_mappings)
+        seen_keys = []
+
+        [simple_mappings[term], qualified_mappings[term]].compact.each do |mapping_value|
+          prefix, local = mapping_value.split(':', 2)
+          key = "#{prefix}:#{local}"
+          next if seen_keys.include?(key)
+
+          xml.tag!(:"#{key}", val)
+          seen_keys << key
+        end
+
+        return unless dc_terms.include?(term)
+
+        prefix = dc_terms_to_fallback_to_dc.include?(term) ? 'dc' : prefix_lookup_for(term)
+        translated_term = term_translation_mappings[term] || term
+        key = "#{prefix}:#{translated_term}"
+        return if seen_keys.include?(key)
+
+        xml.tag!(:"#{key}", val)
+      end
 
       # Takes the object's schema and returns a hash of predicate mappings for terms
       #   that are included in the crosswalk
@@ -206,7 +241,7 @@ module WillowSword
       #     "date_uploaded" => "http://purl.org/dc/terms/dateSubmitted" }
       # @returns [Hash] a hash of predicate mappings for the object's schema
       def predicate_mappings
-        object_klass
+        @predicate_mappings ||= object_klass
           .schema
           .keys
           .select { |field| field.meta && field.meta['predicate'] && terms_from_object.include?(field.name.to_s) }
@@ -217,7 +252,22 @@ module WillowSword
       # Looks up all the terms from the object's schema
       # @returns [Array<String>] a list of terms from the object's schema
       def terms_from_schema
-        object_schema.keys.map { |field| field.name.to_s }
+        @terms_from_schema ||= object_schema.keys.map { |field| field.name.to_s }
+      end
+
+      def simple_dc_mappings_from_schema
+        @simple_dc_mappings_from_schema ||= dc_mappings_from_schema('simple_dc_pmh')
+      end
+
+      def qualified_dc_mappings_from_schema
+        @qualified_dc_mappings_from_schema ||= dc_mappings_from_schema('qualified_dc_pmh')
+      end
+
+      def dc_mappings_from_schema(key)
+        object_schema.keys.each_with_object({}) do |field, h|
+          val = field.meta&.dig('mappings', key)
+          h[field.name.to_s] = val if val
+        end
       end
 
       def object_schema
@@ -226,7 +276,7 @@ module WillowSword
 
       # @returns [Array<String>] a list of terms used in the object to be included in the crosswalk
       def terms_from_object
-        (terms_from_schema + visibility_terms).reject { |term| object.send(term).to_s.blank? }
+        @terms_from_object ||= (terms_from_schema + visibility_terms).reject { |term| object.send(term).to_s.blank? }
       end
 
       # @returns [Array<String>] a list of Hyrax based visibility terms

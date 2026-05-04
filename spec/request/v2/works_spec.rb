@@ -41,6 +41,37 @@ RSpec.describe 'SWORD Works', type: :request do
       expect(child_work_link_element['href']).to end_with("/sword/v2/works/child-work-123")
       expect(child_work_link_element['rel']).to eq('related')
     end
+
+    context 'when the schema declares simple_dc_pmh / qualified_dc_pmh mappings' do
+      before do
+        patched_keys = Monograph.schema.keys.map do |k|
+          next k unless k.name.to_s == 'title'
+
+          patched_meta = k.meta.merge(
+            'mappings' => {
+              'simple_dc_pmh' => 'dc:title',
+              'qualified_dc_pmh' => 'dcterms:title'
+            }
+          )
+          Struct.new(:name, :meta).new(k.name, patched_meta)
+        end
+        patched_schema = double('Schema', keys: patched_keys)
+        allow_any_instance_of(WillowSword::V2::HykuCrosswalk)
+          .to receive(:object_schema).and_return(patched_schema)
+      end
+
+      it 'renders <dc:title> and <dcterms:title> per the schema mappings' do
+        get '/sword/v2/works/work-123', headers: { 'Api-key' => 'test' }
+
+        doc = Nokogiri::XML(response.body)
+        ns = {
+          'dc' => 'http://purl.org/dc/elements/1.1/',
+          'dcterms' => 'http://purl.org/dc/terms/'
+        }
+        expect(doc.root.xpath('dc:title', ns).text).to eq 'Test Work'
+        expect(doc.root.xpath('dcterms:title', ns).text).to eq 'Test Work'
+      end
+    end
   end
 
   describe 'POST /sword/v2/collections/:id/works' do
@@ -493,3 +524,4 @@ RSpec.describe 'SWORD Works', type: :request do
     end
   end
 end
+
