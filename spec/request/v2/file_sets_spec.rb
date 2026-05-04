@@ -8,15 +8,73 @@ RSpec.describe 'SWORD FileSets', type: :request do
   describe 'GET /sword/v2/file_sets/:id' do
     let!(:file_set) { valkyrie_create(:hyrax_file_set, :with_files, id: 'file-set-123', title: ['Test File Set'], creator: ['admin@example.com']) }
 
+    let(:ns) do
+      {
+        'atom' => 'http://www.w3.org/2005/Atom',
+        'dc' => 'http://purl.org/dc/elements/1.1/',
+        'dcterms' => 'http://purl.org/dc/terms/',
+        'h4cmeta' => 'https://hykucommons.org/schema/metadata',
+        'h4csys' => 'https://hykucommons.org/schema/system'
+      }
+    end
+
     it 'returns 200 with valid API key' do
       get "/sword/v2/file_sets/#{file_set.id}", headers: { 'Api-key' => 'test' }
 
       doc = Nokogiri::XML(response.body)
       expect(doc.root.name).to eq('entry')
-      expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('file-set-123')
-      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/downloads/#{file_set.id}")
-      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq file_set.original_file.mime_type
-      expect(doc.root.xpath('h4csys:label', 'h4csys' => 'https://hykucommons.org/schema/system').text).to eq 'image.png'
+      expect(doc.root.xpath('atom:id', ns).text).to eq('file-set-123')
+      expect(doc.root.xpath('atom:content', ns).first['src']).to end_with("/downloads/#{file_set.id}")
+      expect(doc.root.xpath('atom:content', ns).first['type']).to eq file_set.original_file.mime_type
+      expect(doc.root.xpath('h4csys:label', ns).text).to eq 'image.png'
+    end
+
+    it 'renders file set metadata as DC terms' do
+      get "/sword/v2/file_sets/#{file_set.id}", headers: { 'Api-key' => 'test' }
+
+      doc = Nokogiri::XML(response.body)
+
+      # File set title is mapped to dc:title via the DC fallback
+      expect(doc.root.xpath('dc:title', ns).text).to eq 'Test File Set'
+
+      # File set creator is mapped to dc:creator via the DC fallback
+      expect(doc.root.xpath('dc:creator', ns).text).to eq 'admin@example.com'
+
+      # Settable metadata is also rendered under h4cmeta
+      expect(doc.root.xpath('h4cmeta:title', ns).text).to eq 'Test File Set'
+      expect(doc.root.xpath('h4cmeta:creator', ns).text).to eq 'admin@example.com'
+
+      # System metadata is rendered under h4csys
+      expect(doc.root.xpath('h4csys:internal_resource', ns).text).to eq 'FileSet'
+    end
+
+    context 'when the schema declares simple_dc_pmh / qualified_dc_pmh mappings' do
+      before do
+        file_set_klass = file_set.class
+        patched_keys = file_set_klass.schema.keys.map do |k|
+          next k unless k.name.to_s == 'title'
+
+          patched_meta = (k.meta || {}).merge(
+            'mappings' => {
+              'simple_dc_pmh' => 'dc:title',
+              'qualified_dc_pmh' => 'dcterms:title'
+            }
+          )
+          Struct.new(:name, :meta).new(k.name, patched_meta)
+        end
+        patched_schema = double('Schema', keys: patched_keys)
+        allow_any_instance_of(WillowSword::V2::HykuCrosswalk)
+          .to receive(:object_schema).and_return(patched_schema)
+      end
+
+      it 'renders both <dc:title> and <dcterms:title> per the schema mappings' do
+        get "/sword/v2/file_sets/#{file_set.id}", headers: { 'Api-key' => 'test' }
+
+        doc = Nokogiri::XML(response.body)
+
+        expect(doc.root.xpath('dc:title', ns).text).to eq 'Test File Set'
+        expect(doc.root.xpath('dcterms:title', ns).text).to eq 'Test File Set'
+      end
     end
   end
 
@@ -55,6 +113,35 @@ RSpec.describe 'SWORD FileSets', type: :request do
 
       work = Hyrax.query_service.find_by(id: 'work-1')
       expect(work.member_ids).to include(file_set_id)
+    end
+
+    context 'with metadata mappings' do
+      let(:headers) do
+        {
+          'Content-Disposition' => 'attachment; filename=fileSetTestPackage.zip',
+          'Content-Type' => 'application/zip',
+          'In-Progress' => 'false',
+          'Api-key' => 'test'
+        }
+      end
+      let(:params) do
+        File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'fileSetTestPackage.zip'))
+      end
+
+      it 'renders created file set metadata as DC terms' do
+        post '/sword/v2/works/work-1/file_sets', headers: headers, params: params
+
+        doc = Nokogiri::XML(response.body)
+        ns = {
+          'dc' => 'http://purl.org/dc/elements/1.1/',
+          'h4cmeta' => 'https://hykucommons.org/schema/metadata',
+          'h4csys' => 'https://hykucommons.org/schema/system'
+        }
+
+        expect(doc.root.xpath('dc:title', ns).text).to eq 'My title'
+        expect(doc.root.xpath('h4cmeta:title', ns).text).to eq 'My title'
+        expect(doc.root.xpath('h4csys:internal_resource', ns).text).to eq 'FileSet'
+      end
     end
 
     context 'with metadata' do
@@ -105,6 +192,16 @@ RSpec.describe 'SWORD FileSets', type: :request do
       XML
     end
 
+    let(:ns) do
+      {
+        'atom' => 'http://www.w3.org/2005/Atom',
+        'dc' => 'http://purl.org/dc/elements/1.1/',
+        'dcterms' => 'http://purl.org/dc/terms/',
+        'h4cmeta' => 'https://hykucommons.org/schema/metadata',
+        'h4csys' => 'https://hykucommons.org/schema/system'
+      }
+    end
+
     it 'updates the FileSet metadata' do
       allow_any_instance_of(Hyrax::FileMetadata).to receive(:mime_type).and_return('image/png')
 
@@ -115,15 +212,57 @@ RSpec.describe 'SWORD FileSets', type: :request do
 
       doc = Nokogiri::XML(response.body)
       expect(doc.root.name).to eq('entry')
-      expect(doc.root.xpath('atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('file-set-123')
-      expect(doc.root.xpath('atom:title', 'atom' => 'http://www.w3.org/2005/Atom').text).to eq('Updated FileSet Title')
-      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['src']).to end_with("/downloads/file-set-123")
-      expect(doc.root.xpath('atom:content', 'atom' => 'http://www.w3.org/2005/Atom').first['type']).to eq('image/png')
-      expect(doc.root.xpath('h4cmeta:visibility', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('embargo')
-      expect(doc.root.xpath('h4cmeta:embargo_release_date', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('2028-05-02T00:00:00+00:00')
-      expect(doc.root.xpath('h4cmeta:visibility_after_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('authenticated')
-      expect(doc.root.xpath('h4cmeta:visibility_during_embargo', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('restricted')
-      expect(doc.root.xpath('h4cmeta:creator', 'h4cmeta' => 'https://hykucommons.org/schema/metadata').text).to eq('someone_else@example.com')
+      expect(doc.root.xpath('atom:id', ns).text).to eq('file-set-123')
+      expect(doc.root.xpath('atom:title', ns).text).to eq('Updated FileSet Title')
+      expect(doc.root.xpath('atom:content', ns).first['src']).to end_with("/downloads/file-set-123")
+      expect(doc.root.xpath('atom:content', ns).first['type']).to eq('image/png')
+      expect(doc.root.xpath('h4cmeta:visibility', ns).text).to eq('embargo')
+      expect(doc.root.xpath('h4cmeta:embargo_release_date', ns).text).to eq('2028-05-02T00:00:00+00:00')
+      expect(doc.root.xpath('h4cmeta:visibility_after_embargo', ns).text).to eq('authenticated')
+      expect(doc.root.xpath('h4cmeta:visibility_during_embargo', ns).text).to eq('restricted')
+      expect(doc.root.xpath('h4cmeta:creator', ns).text).to eq('someone_else@example.com')
+    end
+
+    it 'renders updated metadata as DC terms' do
+      allow_any_instance_of(Hyrax::FileMetadata).to receive(:mime_type).and_return('image/png')
+
+      put "/sword/v2/file_sets/#{file_set.id}", headers: headers, params: params
+
+      doc = Nokogiri::XML(response.body)
+
+      expect(doc.root.xpath('dc:title', ns).text).to eq 'Updated FileSet Title'
+      expect(doc.root.xpath('dc:creator', ns).text).to eq 'someone_else@example.com'
+    end
+
+    context 'when the schema declares simple_dc_pmh / qualified_dc_pmh mappings' do
+      before do
+        file_set_klass = file_set.class
+        patched_keys = file_set_klass.schema.keys.map do |k|
+          next k unless k.name.to_s == 'title'
+
+          patched_meta = (k.meta || {}).merge(
+            'mappings' => {
+              'simple_dc_pmh' => 'dc:title',
+              'qualified_dc_pmh' => 'dcterms:title'
+            }
+          )
+          Struct.new(:name, :meta).new(k.name, patched_meta)
+        end
+        patched_schema = double('Schema', keys: patched_keys)
+        allow_any_instance_of(WillowSword::V2::HykuCrosswalk)
+          .to receive(:object_schema).and_return(patched_schema)
+      end
+
+      it 'renders both <dc:title> and <dcterms:title> per the schema mappings after update' do
+        allow_any_instance_of(Hyrax::FileMetadata).to receive(:mime_type).and_return('image/png')
+
+        put "/sword/v2/file_sets/#{file_set.id}", headers: headers, params: params
+
+        doc = Nokogiri::XML(response.body)
+
+        expect(doc.root.xpath('dc:title', ns).text).to eq 'Updated FileSet Title'
+        expect(doc.root.xpath('dcterms:title', ns).text).to eq 'Updated FileSet Title'
+      end
     end
 
     context 'when updating visibility' do
