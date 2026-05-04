@@ -19,7 +19,7 @@ xml.feed(xmlns:"http://www.w3.org/2005/Atom", 'xmlns:h4csys':"https://hykucommon
         xml.link(rel: 'edit-media', href: v2_file_set_url(fs_id))
       end
       # assumes *_tesim
-      xml.summary(work['description_tesim']&.join(', ') || work['abstract_tesim']&.join(', '))
+      xml.summary(work['description_tesim']&.join(', ').presence || work['abstract_tesim']&.join(', '))
     end
   end
 end

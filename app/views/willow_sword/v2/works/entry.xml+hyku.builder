@@ -9,7 +9,7 @@ xml.entry(xw.namespace_declarations) do
   xml.updated @object.updated_at.to_s
   xml.content(src: work_url_for(@object), type: 'text/html')
   xml.link(rel: 'edit', href: v2_work_url(@object))
-  xml.summary @object.try(:description)&.join(', ') || @object.try(:abstract)&.join(', ')
+  xml.summary @object.try(:description)&.join(', ').presence || @object.try(:abstract)&.join(', ')
 
   @file_set_ids&.each do |file_set_id|
     xml.link(rel: 'edit-media', href: v2_file_set_url(file_set_id))
