@@ -29,6 +29,7 @@ xml.feed(xw.namespace_declarations) do
   xw.terms.each do |term|
     Array.wrap(@object.send(term)).each do |val|
       val = val.to_s
+      val = xw.handle_visibility(val) if term == 'visibility'
       next if val.blank?
 
       prefix = xw.prefix_lookup_for('h4cmeta')

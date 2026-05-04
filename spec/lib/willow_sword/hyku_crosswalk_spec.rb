@@ -2,7 +2,7 @@ require 'rails_helper'
 require 'willow_sword/hyku_crosswalk'
 require 'support/hyku_crosswalk_helper'
 
-RSpec.describe WillowSword::HykuCrosswalk do
+RSpec.describe WillowSword::HykuCrosswalk, type: :request do
   include HykuCrosswalkHelper
 
   subject(:xw) { described_class.new(work) }
@@ -71,6 +71,28 @@ RSpec.describe WillowSword::HykuCrosswalk do
         'access_right' => 'accessRights',
         'alternative_title' => 'alternative'
       )
+    end
+  end
+
+  describe '#handle_visibility' do
+    it 'returns the raw value when there is no active embargo or lease' do
+      allow(work).to receive(:embargo).and_return(nil)
+      allow(work).to receive(:lease).and_return(nil)
+      expect(xw.handle_visibility('open')).to eq 'open'
+    end
+
+    it 'translates to "embargo" when the work has an active embargo' do
+      allow(work).to receive(:embargo).and_return(double(active?: true))
+      allow(work).to receive(:lease).and_return(nil)
+      allow(work).to receive(:visibility_during_embargo).and_return('restricted')
+      expect(xw.handle_visibility('restricted')).to eq 'embargo'
+    end
+
+    it 'translates to "lease" when the work has an active lease' do
+      allow(work).to receive(:embargo).and_return(nil)
+      allow(work).to receive(:lease).and_return(double(active?: true))
+      allow(work).to receive(:visibility_during_lease).and_return('open')
+      expect(xw.handle_visibility('open')).to eq 'lease'
     end
   end
 end
