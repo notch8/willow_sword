@@ -48,6 +48,10 @@ module WillowSword
           iri: 'http://purl.org/net/sword/error/MaxUploadSizeExceeded',
           code: 413
         },
+        not_found: {
+          iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
+          code: 404
+        },
         default: {
           iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
           code: 400
