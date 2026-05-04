@@ -1,23 +1,60 @@
-version: '3.8'
 services:
-  web:
+  initialize_app:
     platform: linux/amd64
     build: .
-    ports:
-      - "3000:3000"
+    entrypoint: ["/bin/sh", "-c"]
     volumes:
       - .:/willow_sword
-    command: >
-      sh -c "echo \"gem 'willow_sword', path: '/willow_sword'\" >> Gemfile &&
-             BUNDLE_GEMFILE=Gemfile.dassie bundle install &&
-             bundle exec rails generate willow_sword:install &&
-             bundle exec rails db:migrate &&
-             bundle exec puma -v -b tcp://0.0.0.0:3000"
+      - bundle:/usr/local/bundle
+      - hyrax_app:/app/samvera/hyrax-webapp
+    environment:
+      - DATABASE_URL=postgresql://hyrax_user:hyrax_password@postgres/hyrax_test
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=hyrax_user
+      - DB_PASSWORD=hyrax_password
+      - DB_NAME=hyrax
+      - FCREPO_HOST=fcrepo
+      - FCREPO_PORT=8080
+      - FCREPO_REST_PATH=rest
+      - RAILS_ENV=test
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - SOLR_HOST=solr
+      - SOLR_PORT=8983
+      - SOLR_URL=http://solr:8983/solr/hydra-development
+      - VALKYRIE_TRANSITION=true
     depends_on:
       - postgres
       - solr
       - redis
       - fcrepo
+    command: /willow_sword/bin/initialize-app.sh
+
+  web:
+    platform: linux/amd64
+    build: .
+    entrypoint: ["/bin/sh", "-c"]
+    user: root
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/willow_sword
+      - bundle:/usr/local/bundle
+      - hyrax_app:/app/samvera/hyrax-webapp
+    command: >
+      "bundle exec puma -v -b tcp://0.0.0.0:3000"
+    depends_on:
+      initialize_app:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_started
+      solr:
+        condition: service_started
+      redis:
+        condition: service_started
+      fcrepo:
+        condition: service_started
     environment:
       - DATABASE_URL=postgresql://hyrax_user:hyrax_password@postgres/hyrax_test
       - DB_HOST=postgres
@@ -58,3 +95,7 @@ services:
     image: ghcr.io/samvera/fcrepo4:4.7.5
     ports:
       - 8080:8080
+
+volumes:
+  bundle:
+  hyrax_app:
