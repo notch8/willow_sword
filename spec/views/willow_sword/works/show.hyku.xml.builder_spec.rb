@@ -5,7 +5,7 @@ require 'willow_sword/hyku_crosswalk'
 require 'support/hyku_crosswalk_helper'
 require 'nokogiri'
 
-RSpec.describe 'willow_sword/works/show', type: :view do
+RSpec.describe 'willow_sword/works/show.hyku.xml.builder', type: :view do
   include HykuCrosswalkHelper
 
   let(:work) { mock_work }
@@ -32,7 +32,7 @@ RSpec.describe 'willow_sword/works/show', type: :view do
   end
 
   it 'renders the expected XML' do
-    render template: 'willow_sword/works/show', variants: [:hyku], formats: [:xml]
+    render
     actual_doc = Nokogiri::XML(rendered)
     expected_doc = Nokogiri::XML(<<~XML)
       <?xml version="1.0"?>
