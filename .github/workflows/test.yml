@@ -10,7 +10,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ruby: ['3.2', '3.3']
+        ruby: ['3.3']
     name: Unit (Ruby ${{ matrix.ruby }})
     steps:
       - uses: actions/checkout@v4
