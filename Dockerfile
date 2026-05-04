@@ -1,1 +1,1 @@
-FROM ghcr.io/samvera/hyrax-dev:fb6253ba69f577253aa2b26c6465ac12f7c37a0c
+FROM ghcr.io/samvera/hyrax-dev:81f74086cf84996b772c679e5f2afd2725acf455

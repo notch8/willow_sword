@@ -18,4 +18,5 @@ group :test do
   gem 'factory_girl_rails' # , '~> 4.0'
   gem 'shoulda-matchers' #, '~> 3.1'
   gem 'byebug'
+  gem 'bootsnap', require: false
 end
