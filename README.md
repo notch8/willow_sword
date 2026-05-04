@@ -66,19 +66,6 @@ docker compose exec -w /willow_sword web \
   bash -lc 'BUNDLE_GEMFILE=/app/samvera/hyrax-webapp/Gemfile.dassie bundle exec rspec'
 ```
 
-### Request specs (flexible metadata)
-
-To run against Dassie with flexible metadata (`HYRAX_FLEXIBLE=true`):
-
-```sh
-docker compose -f docker-compose.yml -f docker-compose.flexible.yml up -d --build web
-# wait for Puma to finish booting (~2-3 minutes)
-
-docker compose -f docker-compose.yml -f docker-compose.flexible.yml \
-  exec -w /willow_sword web \
-  bash -lc 'BUNDLE_GEMFILE=/app/samvera/hyrax-webapp/Gemfile.dassie bundle exec rspec'
-```
-
 ### Updating the Hyrax dev image
 
 The integration tests use a pre-built Hyrax dev image (`ghcr.io/samvera/hyrax-dev`). To update it, run the "Build Hyrax Dev Image" workflow from the Actions tab with the desired Hyrax commit SHA. This publishes a new image to `ghcr.io/notch8/hyrax-dev` and the `Dockerfile` can then be updated to reference it.

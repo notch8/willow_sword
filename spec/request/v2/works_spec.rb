@@ -346,7 +346,7 @@ RSpec.describe 'SWORD Works', type: :request do
 
   describe 'PUT /sword/v2/works/:id' do
     include ActiveSupport::Testing::TimeHelpers
-    let(:monograph_extras) { flexible_metadata? ? {} : { record_info: ['Some info'] } }
+    let(:monograph_extras) { { record_info: ['Some info'] } }
     let(:work) { valkyrie_create(:monograph, title: ['Original Title'], creator: ['Original Creator'], **monograph_extras) }
     let(:headers) do
       {

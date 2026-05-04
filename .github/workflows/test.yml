@@ -33,9 +33,6 @@ jobs:
           - name: dassie
             compose_file: docker-compose.yml
             gemfile: Gemfile.dassie
-          - name: dassie-flexible
-            compose_file: docker-compose.yml:docker-compose.flexible.yml
-            gemfile: Gemfile.dassie
     name: Integration (${{ matrix.name }})
     steps:
       - uses: actions/checkout@v4
