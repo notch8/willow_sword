@@ -31,7 +31,7 @@ module WillowSword
     # The directory itself is not included in the archive, rather just its contents.
     def create_zip
       entries = Dir.entries(@src); entries.delete("."); entries.delete("..")
-      io = Zip::File.open(@dst, Zip::File::CREATE)
+      io = Zip::File.open(@dst, create: true)
       writeEntries(entries, "", io)
       io.close()
     end

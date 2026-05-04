@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Clean up Docker environment
+        run: |
+          docker compose down -v || true
+          docker system prune -af --volumes || true
+
+      - name: Build Docker containers
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml build
+
+      - name: Start Docker containers
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml up -d
+
+      - name: Run RSpec tests
+        run: >-
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml exec -T
+          -w /willow_sword web
+          bash -lc 'BUNDLE_GEMFILE=/app/samvera/hyrax-webapp/Gemfile.dassie bundle exec rspec'
+
+      - name: Dump docker logs
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.ci.yml logs --tail=200

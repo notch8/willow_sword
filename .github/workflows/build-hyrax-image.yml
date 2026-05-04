@@ -1,0 +1,45 @@
+name: Build Hyrax Dev Image
+on:
+  workflow_dispatch:
+    inputs:
+      hyrax_ref:
+        description: 'Hyrax commit SHA or branch to build from'
+        required: true
+        default: 'main'
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: notch8/hyrax-dev
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout Hyrax
+        uses: actions/checkout@v4
+        with:
+          repository: samvera/hyrax
+          ref: ${{ github.event.inputs.hyrax_ref }}
+
+      - name: Set tag from SHA
+        run: echo "TAG=$(git rev-parse --short=12 HEAD)" >> $GITHUB_ENV
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: hyrax-engine-dev
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest

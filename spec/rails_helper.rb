@@ -86,8 +86,6 @@ RSpec.configure do |config|
   # config.filter_gems_from_backtrace("gem name")
 
   if dockerized?
-    config.filter_run_including type: ->(v) { %i[request controller].include?(v) } # only run request/controller specs in docker
-
     config.include FactoryBot::Syntax::Methods
     config.use_transactional_fixtures = false
 
