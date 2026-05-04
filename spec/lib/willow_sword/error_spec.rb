@@ -14,7 +14,16 @@ RSpec.describe WillowSword::Error do
       expect(error.errors).to include(:mediation_not_allowed)
       expect(error.errors).to include(:method_not_allowed)
       expect(error.errors).to include(:max_upload_size_exceeded)
+      expect(error.errors).to include(:not_found)
       expect(error.errors).to include(:default)
+    end
+
+    it "should return error of type not_found" do
+      msg = 'not found'
+      error = WillowSword::Error.new(msg, :not_found)
+      expect(error.iri).to eq('http://purl.org/net/sword/error/ErrorBadRequest')
+      expect(error.code).to eq 404
+      expect(error.message).to eq msg
     end
 
     it "should default to bad_request when no value" do

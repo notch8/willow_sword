@@ -27,5 +27,7 @@ WillowSword::Engine.routes.draw do
         resources :file_sets, only: [:create]
       end
     end
+
+    match '*unmatched', to: 'errors#not_found', via: :all
   end
 end
