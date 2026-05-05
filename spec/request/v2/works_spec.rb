@@ -42,6 +42,38 @@ RSpec.describe 'SWORD Works', type: :request do
       expect(child_work_link_element['rel']).to eq('related')
     end
 
+    context 'with multiple Hyrax::FileSet members' do
+      let(:fs1) { valkyrie_create(:hyrax_file_set, id: 'fs-a') }
+      let(:fs2) { valkyrie_create(:hyrax_file_set, id: 'fs-b') }
+
+      before do
+        work = Hyrax.query_service.find_by(id: 'work-123')
+        work.member_ids = [fs1.id, fs2.id]
+        Hyrax.persister.save(resource: work)
+        Hyrax.index_adapter.save(resource: work)
+
+        original_find_members = Hyrax.query_service.method(:find_members)
+        allow(Hyrax.query_service).to receive(:find_members) do |**kwargs|
+          kwargs[:model] ? [] : original_find_members.call(**kwargs)
+        end
+      end
+
+      it 'renders an edit-media link for every Hyrax::FileSet member' do
+        get '/sword/v2/works/work-123', headers: { 'Api-key' => 'test' }
+
+        doc = Nokogiri::XML(response.body)
+        atom_ns = { 'atom' => 'http://www.w3.org/2005/Atom' }
+        edit_media_hrefs = doc.root.xpath('atom:link', atom_ns)
+                              .select { |link| link['rel'] == 'edit-media' }
+                              .map { |link| link['href'] }
+
+        expect(edit_media_hrefs).to contain_exactly(
+          a_string_ending_with('/sword/v2/file_sets/fs-a'),
+          a_string_ending_with('/sword/v2/file_sets/fs-b')
+        )
+      end
+    end
+
     context 'when the schema declares simple_dc_pmh / qualified_dc_pmh mappings' do
       before do
         patched_keys = Monograph.schema.keys.map do |k|
@@ -524,4 +556,3 @@ RSpec.describe 'SWORD Works', type: :request do
     end
   end
 end
-

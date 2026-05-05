@@ -77,8 +77,10 @@ module WillowSword
     end
 
     def file_set_ids
-      file_set_model = WillowSword.config.file_set_models.first.singularize.classify.constantize
-      Hyrax.query_service.find_members(resource: @object, model: file_set_model).map { |fs| fs.id.to_s}
+      member_ids = @object&.member_ids || []
+      return [] if member_ids.empty?
+
+      Hyrax.query_service.find_many_by_ids(ids: member_ids).filter_map { |m| m.id.to_s unless m.work? }
     end
   end
 end
