@@ -19,4 +19,14 @@ WillowSword.setup do |config|
   config.authorize_request = true
   # Default work model when no work model is provided
   config.default_work_model = 'GenericWork'
+  # Maximum size per chunk in bytes (default 90MB, under typical Cloudflare limits)
+  config.max_chunk_size = 90 * 1024 * 1024
+  # How long to keep incomplete chunked uploads before cleanup (seconds)
+  config.chunked_upload_expiry = 24 * 60 * 60
+  # Directory for staging chunked uploads (relative to Rails.root when host app sets cwd to app root).
+  # Default under tmp/network_files so Hyku-style deploys that already mount the uploads volume at
+  # tmp/network_files share staging across web pods without an additional volume mount.
+  config.chunked_upload_path = 'tmp/network_files/willow_sword'
+  # Maximum total file size for a single chunked upload (default 2GB)
+  config.max_total_upload_size = 2 * 1024 * 1024 * 1024
 end
