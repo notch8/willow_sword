@@ -16,11 +16,11 @@ module WillowSword
 
       if (WillowSword.config.xml_mapping_read == 'MODS')
         @mods = assign_model_to_mods
-        render 'willow_sword/works/show.mods.xml.builder', formats: [:xml], status: 200
+        render 'willow_sword/works/show', formats: [:xml], variants: [:mods], status: 200
       elsif (WillowSword.config.xml_mapping_read == 'Hyku')
-        render 'willow_sword/works/show.hyku', formats: [:xml], status: 200
+        render 'willow_sword/works/show', formats: [:xml], variants: [:hyku], status: 200
       else
-        render 'willow_sword/works/show.dc.xml.builder', formats: [:xml], status: 200
+        render 'willow_sword/works/show', formats: [:xml], variants: [:dc], status: 200
       end
     end
 
