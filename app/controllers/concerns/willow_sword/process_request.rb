@@ -10,6 +10,7 @@ module WillowSword
     def validate_and_save_request
       # Choose based on content type
       return false unless validate_target_user
+
       case request.content_type
       when /\Amultipart\/form-data/
         # multipart deposit
