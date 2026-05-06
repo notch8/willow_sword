@@ -105,6 +105,17 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
       }.to raise_error(WillowSword::SwordError) { |e| expect(e.sword_error.code).to eq(404) }
     end
 
+    it 'rejects when the on-disk payload size is out of sync with the manifest' do
+      File.write(handler.upload_file_path(upload_id), 'tampered')
+
+      expect {
+        handler.append_chunk(upload_id: upload_id, body_stream: StringIO.new('0123456789'), content_range: 'bytes 0-9/20')
+      }.to raise_error(WillowSword::SwordError) { |e|
+        expect(e.sword_error.code).to eq(400)
+        expect(e.message).to include('Payload file is inconsistent with manifest')
+      }
+    end
+
     context 'with md5 checksum' do
       it 'validates checksum on completion' do
         data = 'hello world!12345678'
@@ -190,18 +201,16 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
       expect(manifest[:status]).to eq('awaiting_upload')
     end
 
-    it 'copies metadata file into the staging directory' do
-      metadata_dir = Dir.mktmpdir
-      metadata_path = File.join(metadata_dir, 'metadata.xml')
-      File.write(metadata_path, '<metadata><title>Test</title></metadata>')
-
-      staging_id = handler.initiate_staging(work_id: 'work-1', metadata_path: metadata_path, user_id: 1)
+    it 'writes metadata_body into the staging directory' do
+      staging_id = handler.initiate_staging(
+        work_id: 'work-1',
+        metadata_body: '<metadata><title>Test</title></metadata>',
+        user_id: 1
+      )
 
       staged_metadata = File.join(upload_base, staging_id, 'metadata.xml')
       expect(File.exist?(staged_metadata)).to be true
       expect(File.read(staged_metadata)).to include('<title>Test</title>')
-    ensure
-      FileUtils.rm_rf(metadata_dir)
     end
   end
 
@@ -238,17 +247,11 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
 
   describe '#staging_metadata_path' do
     it 'returns the path when metadata exists' do
-      metadata_dir = Dir.mktmpdir
-      metadata_path = File.join(metadata_dir, 'metadata.xml')
-      File.write(metadata_path, '<metadata/>')
-
-      staging_id = handler.initiate_staging(work_id: 'work-1', metadata_path: metadata_path, user_id: 1)
+      staging_id = handler.initiate_staging(work_id: 'work-1', metadata_body: '<metadata/>', user_id: 1)
 
       result = handler.staging_metadata_path(staging_id)
       expect(result).to be_present
       expect(File.exist?(result)).to be true
-    ensure
-      FileUtils.rm_rf(metadata_dir)
     end
 
     it 'returns nil when no metadata was staged' do
@@ -408,6 +411,28 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
 
       handler.cleanup_stale_uploads
       expect(File.directory?(File.join(upload_base, uid))).to be true
+    end
+
+    it 'sweeps orphaned tmp manifest files older than expiry while leaving the upload intact' do
+      uid = staging_id_ready_for_chunks(filename: 'still-active.zip', total_size: 100, user_id: 1)
+      orphan = File.join(upload_base, uid, ".manifest.deadbeef.tmp")
+      File.write(orphan, '{}')
+      old = (Time.current - 2.days).to_time
+      File.utime(old, old, orphan)
+
+      handler.cleanup_stale_uploads
+
+      expect(File.exist?(orphan)).to be false
+      expect(File.directory?(File.join(upload_base, uid))).to be true
+    end
+
+    it 'leaves recent tmp manifest files alone (a write may be in flight)' do
+      uid = staging_id_ready_for_chunks(filename: 'still-active.zip', total_size: 100, user_id: 1)
+      tmp = File.join(upload_base, uid, ".manifest.cafef00d.tmp")
+      File.write(tmp, '{}')
+
+      handler.cleanup_stale_uploads
+      expect(File.exist?(tmp)).to be true
     end
   end
 end

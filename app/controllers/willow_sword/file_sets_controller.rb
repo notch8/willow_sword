@@ -12,16 +12,16 @@ module WillowSword
     rescue_from WillowSword::SwordError, with: :handle_sword_error
 
     def show
-      # Check for staging entry first
       @staging_manifest = upload_status(params[:id])
       if @staging_manifest
         @staging_id = params[:id]
         @staging_href = collection_work_file_set_url(params[:collection_id], params[:work_id], @staging_id)
         render 'willow_sword/shared/staging_status', formats: [:xml], status: :ok
-      else
-        @file_set = find_file_set
-        render_file_set_not_found and return unless @file_set
+        return
       end
+
+      @file_set = find_file_set
+      render_file_set_not_found and return unless @file_set
     end
 
     def create
@@ -29,39 +29,34 @@ module WillowSword
       find_work_by_query(params[:work_id])
       render_work_not_found and return unless @object
 
-      if in_progress_deposit?
-        perform_staging_initiation
+      return perform_staging_initiation if in_progress_deposit?
+
+      @error = nil
+      if perform_create
+        render 'create', formats: [:xml], status: :created,
+          location: collection_work_file_set_url(params[:collection_id], @object, @file_set)
       else
-        @error = nil
-        if perform_create
-          render 'create', formats: [:xml], status: :created,
-            location: collection_work_file_set_url(params[:collection_id], @object, @file_set)
-        else
-          @error = WillowSword::Error.new("Error creating file set") unless @error.present?
-          render 'willow_sword/shared/error', formats: [:xml], status: @error.code
-        end
+        @error = WillowSword::Error.new("Error creating file set") unless @error.present?
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
       end
     end
 
     def update
-      # Check for staging entry first
       @staging_manifest = upload_status(params[:id])
-      if @staging_manifest
-        perform_chunked_update
+      return perform_chunked_update if @staging_manifest
+
+      # Find work
+      find_work_by_query(params[:work_id])
+      render_work_not_found and return unless @object
+      # Find file set
+      @file_set = find_file_set
+      render_file_set_not_found and return unless @file_set
+      @error = nil
+      if perform_update
+        render 'update', formats: [:xml], status: :no_content
       else
-        # Find work
-        find_work_by_query(params[:work_id])
-        render_work_not_found and return unless @object
-        # Find file set
-        @file_set = find_file_set
-        render_file_set_not_found and return unless @file_set
-        @error = nil
-        if perform_update
-          render 'update', formats: [:xml], status: :no_content
-        else
-          @error = WillowSword::Error.new("Error updating file set") unless @error.present?
-          render 'willow_sword/shared/error', formats: [:xml], status: @error.code
-        end
+        @error = WillowSword::Error.new("Error updating file set") unless @error.present?
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
       end
     end
 
@@ -90,62 +85,38 @@ module WillowSword
         true
       end
 
-      # --- Chunked upload helpers ---
-
-      def in_progress_deposit?
-        @headers[:in_progress]&.downcase == 'true'
-      end
+      def in_progress_deposit? = @headers[:in_progress]&.downcase == 'true'
 
       def perform_staging_initiation
-        metadata_file = save_staging_metadata
-
-        begin
-          @staging_id = initiate_staging(
-            work_id: params[:work_id],
-            collection_id: params[:collection_id],
-            metadata_path: metadata_file,
-            filename: @headers[:filename],
-            md5: @headers[:md5hash],
-            user_id: @current_user&.id
-          )
-        ensure
-          FileUtils.rm_rf(File.dirname(metadata_file)) if metadata_file
-        end
+        request.body.rewind
+        @staging_id = initiate_staging(
+          work_id: params[:work_id],
+          collection_id: params[:collection_id],
+          metadata_body: request.body.read,
+          filename: @headers[:filename],
+          md5: @headers[:md5hash],
+          user_id: @current_user&.id
+        )
 
         @staging_manifest = upload_status(@staging_id)
-        @staging_href = collection_work_file_set_url(params[:collection_id], params[:work_id], @staging_id)
+        @staging_href = staging_href_for(@staging_id)
 
         render 'willow_sword/shared/staging_status', formats: [:xml], status: :created
       end
 
-      def save_staging_metadata
-        request.body.rewind
-        body = request.body.read
-        return nil if body.blank?
-
-        dir = File.join('tmp/data', SecureRandom.uuid)
-        FileUtils.mkdir_p(dir)
-        path = File.join(dir, 'metadata.xml')
-        File.open(path, 'wb') { |f| f.write(body) }
-        path
+      def staging_href_for(staging_id)
+        collection_work_file_set_url(
+          @staging_manifest[:collection_id] || params[:collection_id],
+          @staging_manifest[:work_id] || params[:work_id],
+          staging_id
+        )
       end
 
       def perform_chunked_update
         content_range = @headers[:content_range]
-        unless content_range.present?
-          @error = WillowSword::Error.new("Content-Range header is required for chunked uploads", :bad_request)
-          render 'willow_sword/shared/error', formats: [:xml], status: @error.code
-          return
-        end
+        return render_sword_error("Content-Range header is required for chunked uploads", :bad_request) if content_range.blank?
 
         staging_id = params[:id]
-
-        # Activate upload tracking on first chunk
-        if @staging_manifest[:status] == 'awaiting_upload'
-          range = parse_content_range(content_range)
-          activate_staging(upload_id: staging_id, total_size: range[:total])
-        end
-
         finalize = !in_progress_deposit?
 
         result = append_chunk(
@@ -155,65 +126,60 @@ module WillowSword
           finalize: finalize
         )
 
-        if result[:complete] && finalize
-          finalize_staged_upload(staging_id)
-        else
-          @staging_id = staging_id
-          @staging_manifest = upload_status(staging_id)
-          @staging_href = collection_work_file_set_url(
-            @staging_manifest[:collection_id] || params[:collection_id],
-            @staging_manifest[:work_id] || params[:work_id],
-            staging_id
-          )
-          render 'willow_sword/shared/staging_status', formats: [:xml], status: :ok
-        end
+        return finalize_staged_upload(staging_id) if result[:complete] && finalize
+
+        @staging_id = staging_id
+        @staging_manifest = upload_status(staging_id)
+        @staging_href = staging_href_for(staging_id)
+        render 'willow_sword/shared/staging_status', formats: [:xml], status: :ok
+      end
+
+      def render_sword_error(message, type)
+        @error = WillowSword::Error.new(message, type)
+        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
       end
 
       def finalize_staged_upload(staging_id)
         manifest = upload_status(staging_id)
-
-        # Find the parent work
         find_work_by_query(manifest[:work_id])
-        unless @object
-          @error = WillowSword::Error.new("Work #{manifest[:work_id]} not found", :bad_request)
-          render 'willow_sword/shared/error', formats: [:xml], status: @error.code
-          return
-        end
+        return render_sword_error("Work #{manifest[:work_id]} not found", :bad_request) if @object.nil?
 
-        # Set up files from the assembled payload
-        payload_path = upload_file_path(staging_id)
-        filename = upload_filename(staging_id) || 'payload'
+        process_staged_upload(staging_id, manifest)
+      ensure
+        cancel_upload(staging_id)
+      end
 
+      def process_staged_upload(staging_id, manifest)
         finalize_dir = File.join('tmp/data', SecureRandom.uuid, 'contents')
         FileUtils.mkdir_p(finalize_dir)
 
-        begin
-          dest = File.join(finalize_dir, filename)
-          FileUtils.cp(payload_path, dest)
-          @files = [dest]
+        filename = upload_filename(staging_id) || 'payload'
+        dest = File.join(finalize_dir, filename)
+        FileUtils.cp(upload_file_path(staging_id), dest)
+        @files = [dest]
 
-          # Parse staged metadata
-          metadata_path = staging_metadata_path(staging_id)
-          if metadata_path
-            parse_metadata(metadata_path, false)
-          else
-            @attributes = {}
-          end
+        parse_staged_metadata(staging_id)
+        upload_files if @files.any?
+        create_file_set
+        render_finalized_entry(manifest)
+      ensure
+        FileUtils.rm_rf(File.dirname(finalize_dir)) if finalize_dir
+      end
 
-          # Create the Hyrax file set (same flow as perform_create)
-          upload_files unless @files.blank?
-          create_file_set
-
-          collection_id = manifest[:collection_id] || params[:collection_id]
-          render 'create', formats: [:xml], status: :created,
-            location: collection_work_file_set_url(collection_id, @object, @file_set)
-        ensure
-          cancel_upload(staging_id)
-          FileUtils.rm_rf(File.dirname(finalize_dir))
+      def parse_staged_metadata(staging_id)
+        metadata_path = staging_metadata_path(staging_id)
+        if metadata_path
+          parse_metadata(metadata_path, false)
+        else
+          @attributes = {}
         end
       end
 
-      # --- Error helpers ---
+      def render_finalized_entry(manifest)
+        collection_id = manifest[:collection_id] || params[:collection_id]
+        render 'create', formats: [:xml], status: :created,
+          location: collection_work_file_set_url(collection_id, @object, @file_set)
+      end
 
       def handle_sword_error(exception)
         @error = exception.sword_error

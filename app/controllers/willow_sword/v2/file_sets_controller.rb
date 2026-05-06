@@ -9,159 +9,37 @@ module WillowSword
       before_action :authorize_action, only: [:create, :show, :update]
 
       def create
-        if in_progress_deposit?
-          perform_staging_initiation
-        else
-          perform_create
+        return perform_staging_initiation if in_progress_deposit?
 
-          xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
-          render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :created
-        end
+        perform_create
+
+        xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :created
       end
 
       def show
-        if @staging_manifest
-          render 'willow_sword/shared/staging_status', formats: [:xml], status: :ok
-        else
-          xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
-          render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :ok
-        end
+        return render('willow_sword/shared/staging_status', formats: [:xml], status: :ok) if @staging_manifest
+
+        xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :ok
       end
 
       def update
-        if @staging_manifest
-          perform_chunked_update
-        else
-          perform_update
+        return perform_chunked_update if @staging_manifest
 
-          xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
-          render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :ok
-        end
+        perform_update
+
+        xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :ok
       end
 
       private
 
-      def in_progress_deposit?
-        @headers[:in_progress]&.downcase == 'true'
-      end
+      def staging_href_for(staging_id) = v2_file_set_url(staging_id)
 
-      # --- Staging initiation (POST with In-Progress: true) ---
-
-      def perform_staging_initiation
-        metadata_file = save_staging_metadata
-
-        begin
-          @staging_id = initiate_staging(
-            work_id: params[:work_id],
-            metadata_path: metadata_file,
-            filename: @headers[:filename],
-            md5: @headers[:md5hash],
-            user_id: @current_user&.id
-          )
-        ensure
-          # Clean up the temp metadata file; initiate_staging already copied it into staging dir
-          FileUtils.rm_rf(File.dirname(metadata_file)) if metadata_file
-        end
-
-        @staging_manifest = upload_status(@staging_id)
-        @staging_href = v2_file_set_url(@staging_id)
-
-        render 'willow_sword/shared/staging_status', formats: [:xml], status: :created
-      end
-
-      def save_staging_metadata
-        request.body.rewind
-        body = request.body.read
-        return nil if body.blank?
-
-        dir = File.join('tmp/data', SecureRandom.uuid)
-        FileUtils.mkdir_p(dir)
-        path = File.join(dir, 'metadata.xml')
-        File.open(path, 'wb') { |f| f.write(body) }
-        path
-      end
-
-      # --- Chunked upload (PUT with Content-Range) ---
-
-      def perform_chunked_update
-        content_range = @headers[:content_range]
-        unless content_range.present?
-          return render_sword_error("Content-Range header is required for chunked uploads", :bad_request)
-        end
-
-        staging_id = params[:id]
-
-        # Activate upload tracking on first chunk
-        if @staging_manifest[:status] == 'awaiting_upload'
-          range = parse_content_range(content_range)
-          activate_staging(upload_id: staging_id, total_size: range[:total])
-        end
-
-        finalize = !in_progress_deposit?
-
-        result = append_chunk(
-          upload_id: staging_id,
-          body_stream: request.body,
-          content_range: content_range,
-          finalize: finalize
-        )
-
-        if result[:complete] && finalize
-          finalize_staged_upload(staging_id)
-        else
-          @staging_id = staging_id
-          @staging_manifest = upload_status(staging_id)
-          @staging_href = v2_file_set_url(staging_id)
-          render 'willow_sword/shared/staging_status', formats: [:xml], status: :ok
-        end
-      end
-
-      def finalize_staged_upload(staging_id)
-        manifest = upload_status(staging_id)
-
-        # Find the parent work
-        find_work_by_query(manifest[:work_id])
-        unless @object
-          return render_sword_error("Work #{manifest[:work_id]} not found", :bad_request)
-        end
-
-        # Set up files from the assembled payload (cp, not mv, so staging is intact on failure)
-        payload_path = upload_file_path(staging_id)
-        filename = upload_filename(staging_id) || 'payload'
-
-        finalize_dir = File.join('tmp/data', SecureRandom.uuid, 'contents')
-        FileUtils.mkdir_p(finalize_dir)
-
-        begin
-          dest = File.join(finalize_dir, filename)
-          FileUtils.cp(payload_path, dest)
-          @files = [dest]
-
-          # Parse staged metadata
-          metadata_path = staging_metadata_path(staging_id)
-          if metadata_path
-            parse_metadata(metadata_path, false)
-          else
-            @attributes = {}
-          end
-
-          # Create the Hyrax file set (same flow as perform_create)
-          upload_files unless @files.blank?
-          create_file_set
-
-          xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
-          render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :created
-        ensure
-          cancel_upload(staging_id)
-          FileUtils.rm_rf(File.dirname(finalize_dir))
-        end
-      end
-
-      # --- Shared helpers ---
-
-      def render_sword_error(message, type)
-        @error = WillowSword::Error.new(message, type)
-        render 'willow_sword/shared/error', formats: [:xml], status: @error.code
+      def render_finalized_entry(_manifest)
+        xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :created
       end
 
       def extract_metadata(file_path)
