@@ -113,7 +113,7 @@ RSpec.describe WillowSword::Error do
       msg = 'chunk sequence error'
       error = WillowSword::Error.new(msg, :chunk_sequence_error)
       expect(error.iri).to eq('http://purl.org/net/sword/error/ErrorBadRequest')
-      expect(error.code).to eq 416
+      expect(error.code).to eq 409
       expect(error.message).to eq msg
     end
 

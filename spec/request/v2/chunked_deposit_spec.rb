@@ -54,7 +54,7 @@ RSpec.describe 'SWORD Chunked Deposit (end-to-end)', type: :request do
       doc = Nokogiri::XML(response.body)
       staging_id = doc.at_xpath('//atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
       expect(staging_id).to be_present
-      expect(doc.at_xpath('//status').text).to eq('awaiting_upload')
+      expect(doc.at_xpath("//*[local-name()='status']").text).to eq('awaiting_upload')
 
       # Step 3: Upload file in two chunks via PUT to file_sets/:staging_id
       mid = zip_size / 2
@@ -70,8 +70,8 @@ RSpec.describe 'SWORD Chunked Deposit (end-to-end)', type: :request do
 
       expect(response).to have_http_status(:ok)
       doc = Nokogiri::XML(response.body)
-      expect(doc.at_xpath('//status').text).to eq('in_progress')
-      expect(doc.at_xpath('//bytes_received').text).to eq(mid.to_s)
+      expect(doc.at_xpath("//*[local-name()='status']").text).to eq('in_progress')
+      expect(doc.at_xpath("//*[local-name()='bytes_received']").text).to eq(mid.to_s)
 
       # Step 4: Upload final chunk with In-Progress: false
       put "/sword/v2/file_sets/#{staging_id}", headers: {
@@ -132,8 +132,8 @@ RSpec.describe 'SWORD Chunked Deposit (end-to-end)', type: :request do
 
       expect(response).to have_http_status(:ok)
       doc = Nokogiri::XML(response.body)
-      expect(doc.at_xpath('//status').text).to eq('in_progress')
-      expect(doc.at_xpath('//bytes_received').text).to eq(mid.to_s)
+      expect(doc.at_xpath("//*[local-name()='status']").text).to eq('in_progress')
+      expect(doc.at_xpath("//*[local-name()='bytes_received']").text).to eq(mid.to_s)
 
       put "/sword/v2/file_sets/#{staging_id}", headers: {
         'Api-key' => 'test',
@@ -149,6 +149,82 @@ RSpec.describe 'SWORD Chunked Deposit (end-to-end)', type: :request do
       work = Hyrax.query_service.find_by(id: work_id)
       expect(work.member_ids).not_to be_empty
       expect(File.exist?(File.join(upload_base, staging_id))).to be false
+    end
+
+    describe 'typed error responses' do
+      let(:atom_ns) { { 'atom' => 'http://www.w3.org/2005/Atom' } }
+      let(:sword_ns) { { 'sword' => 'http://purl.org/net/sword/' } }
+
+      def stage_upload(work_id, headers_extra = {})
+        post "/sword/v2/works/#{work_id}/file_sets", headers: {
+          'Api-key' => 'test',
+          'Content-Type' => 'application/xml',
+          'Content-Disposition' => 'attachment; filename=testPackage.zip',
+          'In-Progress' => 'true'
+        }.merge(headers_extra), params: '<metadata><title>err-spec</title></metadata>'
+        doc = Nokogiri::XML(response.body)
+        doc.at_xpath('//atom:id', atom_ns).text
+      end
+
+      def create_work
+        post "/sword/v2/collections/#{admin_set_id}/works", headers: {
+          'Api-key' => 'test',
+          'Content-Type' => 'application/xml',
+          'In-Progress' => 'false'
+        }, params: metadata
+        Nokogiri::XML(response.body).root
+              .xpath('atom:id', atom_ns).text
+      end
+
+      it 'returns 409 (chunk_sequence_error) for an out-of-order PUT' do
+        work_id = create_work
+        staging_id = stage_upload(work_id)
+        mid = zip_size / 2
+
+        # Send chunk2's range first; the handler expects to start at byte 0.
+        put "/sword/v2/file_sets/#{staging_id}", headers: {
+          'Api-key' => 'test',
+          'Content-Type' => 'application/octet-stream',
+          'Content-Range' => "bytes #{mid}-#{zip_size - 1}/#{zip_size}",
+          'In-Progress' => 'true'
+        }, params: zip_data[mid..]
+
+        expect(response).to have_http_status(:conflict) # 409
+        doc = Nokogiri::XML(response.body)
+        expect(doc.root.name).to eq('error')
+        expect(doc.root.namespace.href).to eq('http://purl.org/net/sword/')
+        expect(doc.root.xpath('atom:summary', atom_ns).text)
+          .to match(/Expected chunk starting at byte/)
+      end
+
+      it 'returns 412 (checksum_mismatch) when Content-MD5 disagrees on finalize' do
+        work_id = create_work
+        # Bogus md5 — guarantees mismatch on completion.
+        staging_id = stage_upload(work_id, 'Content-MD5' => '00000000000000000000000000000000')
+
+        mid = zip_size / 2
+        put "/sword/v2/file_sets/#{staging_id}", headers: {
+          'Api-key' => 'test',
+          'Content-Type' => 'application/octet-stream',
+          'Content-Range' => "bytes 0-#{mid - 1}/#{zip_size}",
+          'In-Progress' => 'true'
+        }, params: zip_data[0...mid]
+        expect(response).to have_http_status(:ok)
+
+        put "/sword/v2/file_sets/#{staging_id}", headers: {
+          'Api-key' => 'test',
+          'Content-Type' => 'application/octet-stream',
+          'Content-Range' => "bytes #{mid}-#{zip_size - 1}/#{zip_size}",
+          'In-Progress' => 'false'
+        }, params: zip_data[mid..]
+
+        expect(response).to have_http_status(:precondition_failed) # 412
+        doc = Nokogiri::XML(response.body)
+        expect(doc.root.name).to eq('error')
+        expect(doc.root['href']).to eq('http://purl.org/net/sword/error/ErrorChecksumMismatch')
+        expect(doc.root.xpath('atom:summary', atom_ns).text)
+          .to match(/Checksum mismatch/)
+      end
     end
 
     it 'returns staging status on GET during upload' do
@@ -176,8 +252,8 @@ RSpec.describe 'SWORD Chunked Deposit (end-to-end)', type: :request do
 
       expect(response).to have_http_status(:ok)
       doc = Nokogiri::XML(response.body)
-      expect(doc.at_xpath('//status').text).to eq('awaiting_upload')
-      expect(doc.at_xpath('//filename').text).to eq('test.zip')
+      expect(doc.at_xpath("//*[local-name()='status']").text).to eq('awaiting_upload')
+      expect(doc.at_xpath("//*[local-name()='filename']").text).to eq('test.zip')
     end
   end
 end

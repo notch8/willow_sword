@@ -52,7 +52,7 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
       expect {
         body = StringIO.new('data')
         handler.append_chunk(upload_id: upload_id, body_stream: body, content_range: 'bytes 5-8/20')
-      }.to raise_error(WillowSword::SwordError) { |e| expect(e.sword_error.code).to eq(416) }
+      }.to raise_error(WillowSword::SwordError) { |e| expect(e.sword_error.code).to eq(409) }
     end
 
     it 'rejects when the request body size does not match Content-Range' do

@@ -85,7 +85,9 @@ module WillowSword
         true
       end
 
-      def in_progress_deposit? = @headers[:in_progress]&.downcase == 'true'
+      def in_progress_deposit?
+        @headers[:in_progress]&.downcase == 'true'
+      end
 
       def perform_staging_initiation
         request.body.rewind
@@ -168,11 +170,9 @@ module WillowSword
 
       def parse_staged_metadata(staging_id)
         metadata_path = staging_metadata_path(staging_id)
-        if metadata_path
-          parse_metadata(metadata_path, false)
-        else
-          @attributes = {}
-        end
+        return parse_metadata(metadata_path, false) if metadata_path
+
+        @attributes = {}
       end
 
       def render_finalized_entry(manifest)

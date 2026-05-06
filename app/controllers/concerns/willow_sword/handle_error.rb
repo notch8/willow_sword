@@ -9,8 +9,12 @@ module WillowSword
     end
 
     def handle_error(exception)
-      error_type = exception.is_a?(CanCan::AccessDenied) ? :target_owner_unknown : :default
-      @error ||= WillowSword::Error.new(exception.message, error_type)
+      @error ||= if exception.is_a?(WillowSword::SwordError)
+                   exception.sword_error
+                 else
+                   error_type = exception.is_a?(CanCan::AccessDenied) ? :target_owner_unknown : :default
+                   WillowSword::Error.new(exception.message, error_type)
+                 end
       render 'willow_sword/shared/error', formats: [:xml], status: @error.code
     end
   end

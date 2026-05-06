@@ -50,7 +50,7 @@ module WillowSword
         },
         chunk_sequence_error: {
           iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
-          code: 416
+          code: 409
         },
         upload_not_found: {
           iri: 'http://purl.org/net/sword/error/ErrorBadRequest',

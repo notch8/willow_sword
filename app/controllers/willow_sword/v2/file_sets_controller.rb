@@ -35,7 +35,9 @@ module WillowSword
 
       private
 
-      def staging_href_for(staging_id) = v2_file_set_url(staging_id)
+      def staging_href_for(staging_id)
+        v2_file_set_url(staging_id)
+      end
 
       def render_finalized_entry(_manifest)
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
@@ -53,7 +55,7 @@ module WillowSword
         case action_name
         when 'create'
           find_work_by_query(params[:work_id])
-          render_work_not_found and return if @object.nil?
+          render_work_not_found if @object.nil?
         when 'show', 'update'
           # Check for staging entry first, then fall back to real Hyrax file set
           @staging_manifest = upload_status(params[:id])
@@ -62,7 +64,7 @@ module WillowSword
             @staging_href = v2_file_set_url(@staging_id)
           else
             @file_set = find_file_set
-            render_file_set_not_found and return if @file_set.nil?
+            render_file_set_not_found if @file_set.nil?
           end
         end
       end
@@ -71,30 +73,25 @@ module WillowSword
         return if performed?
 
         case action_name
-        when 'create'
-          authorize! :create, @object
-        when 'show'
-          if @staging_manifest
-            validate_staging_owner!
-          else
-            authorize! :read, @file_set
-          end
-        when 'update'
-          if @staging_manifest
-            validate_staging_owner!
-          else
-            authorize! :edit, @file_set
-          end
+        when 'create' then authorize! :create, @object
+        when 'show'   then authorize_view!(:read)
+        when 'update' then authorize_view!(:edit)
         end
       end
 
+      def authorize_view!(permission)
+        return validate_staging_owner! if @staging_manifest
+
+        authorize! permission, @file_set
+      end
+
       def validate_staging_owner!
-        return true unless @current_user
-        return true if @staging_manifest[:user_id].nil?
-        return true if @staging_manifest[:user_id] == @current_user.id
+        # No current_user means config.authorize_request is off; fall through
+        return if @current_user.nil?
+        return if @staging_manifest[:user_id].nil?
+        return if @staging_manifest[:user_id] == @current_user.id
 
         render_sword_error("Not authorized for this upload", :target_owner_unknown)
-        false
       end
     end
   end
