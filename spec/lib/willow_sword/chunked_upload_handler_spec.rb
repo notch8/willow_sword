@@ -257,6 +257,122 @@ RSpec.describe WillowSword::ChunkedUploadHandler do
     end
   end
 
+  describe 'unknown total size (Content-Range "bytes X-Y/*")' do
+    it 'parses "*" as nil total' do
+      result = handler.parse_content_range('bytes 0-99/*')
+      expect(result[:total]).to be_nil
+      expect(result[:range_start]).to eq(0)
+      expect(result[:range_end]).to eq(99)
+    end
+
+    it 'allows activate_staging with nil total_size' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'stream.bin', user_id: 1)
+      handler.activate_staging(upload_id: staging_id, total_size: nil)
+
+      manifest = handler.upload_status(staging_id)
+      expect(manifest[:status]).to eq('in_progress')
+      expect(manifest[:total_size]).to be_nil
+    end
+
+    it 'accepts /* chunks while in-progress without auto-completing' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'stream.bin', user_id: 1)
+      handler.activate_staging(upload_id: staging_id, total_size: nil)
+
+      result = handler.append_chunk(
+        upload_id: staging_id,
+        body_stream: StringIO.new('hello'),
+        content_range: 'bytes 0-4/*'
+      )
+      expect(result[:bytes_received]).to eq(5)
+      expect(result[:complete]).to be false
+
+      manifest = handler.upload_status(staging_id)
+      expect(manifest[:total_size]).to be_nil
+      expect(manifest[:status]).to eq('in_progress')
+    end
+
+    it 'finalizes a /* upload when finalize: true (total inferred from bytes_received)' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'stream.bin', user_id: 1)
+      handler.activate_staging(upload_id: staging_id, total_size: nil)
+
+      handler.append_chunk(
+        upload_id: staging_id,
+        body_stream: StringIO.new('hello'),
+        content_range: 'bytes 0-4/*'
+      )
+      result = handler.append_chunk(
+        upload_id: staging_id,
+        body_stream: StringIO.new(' world'),
+        content_range: 'bytes 5-10/*',
+        finalize: true
+      )
+      expect(result[:complete]).to be true
+      expect(result[:bytes_received]).to eq(11)
+
+      manifest = handler.upload_status(staging_id)
+      expect(manifest[:total_size]).to eq(11)
+      expect(manifest[:status]).to eq('complete')
+      expect(File.read(handler.upload_file_path(staging_id))).to eq('hello world')
+    end
+
+    it 'finalizes a /N upload (Google-style) when last chunk is finalize: true' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'stream.bin', user_id: 1)
+      handler.activate_staging(upload_id: staging_id, total_size: nil)
+
+      handler.append_chunk(
+        upload_id: staging_id,
+        body_stream: StringIO.new('hello'),
+        content_range: 'bytes 0-4/*'
+      )
+      result = handler.append_chunk(
+        upload_id: staging_id,
+        body_stream: StringIO.new(' world'),
+        content_range: 'bytes 5-10/11',
+        finalize: true
+      )
+      expect(result[:complete]).to be true
+
+      manifest = handler.upload_status(staging_id)
+      expect(manifest[:total_size]).to eq(11)
+    end
+
+    it 'rejects finalize when declared total exceeds bytes_received' do
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'stream.bin', user_id: 1)
+      handler.activate_staging(upload_id: staging_id, total_size: nil)
+
+      expect {
+        handler.append_chunk(
+          upload_id: staging_id,
+          body_stream: StringIO.new('hello'),
+          content_range: 'bytes 0-4/100',
+          finalize: true
+        )
+      }.to raise_error(WillowSword::SwordError) { |e| expect(e.sword_error.code).to eq(409) }
+    end
+
+    it 'enforces running max_total_upload_size during /* uploads' do
+      config = double('config', chunked_upload_path: upload_base, max_chunk_size: 90 * 1024 * 1024, chunked_upload_expiry: 86_400, max_total_upload_size: 10)
+      allow(WillowSword).to receive(:setup).and_return(config)
+
+      staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'stream.bin', user_id: 1)
+      handler.activate_staging(upload_id: staging_id, total_size: nil)
+
+      handler.append_chunk(
+        upload_id: staging_id,
+        body_stream: StringIO.new('hello'),
+        content_range: 'bytes 0-4/*'
+      )
+
+      expect {
+        handler.append_chunk(
+          upload_id: staging_id,
+          body_stream: StringIO.new(' world!!'),
+          content_range: 'bytes 5-12/*'
+        )
+      }.to raise_error(WillowSword::SwordError) { |e| expect(e.sword_error.code).to eq(413) }
+    end
+  end
+
   describe 'staging + chunk append integration' do
     it 'accepts chunks after activate_staging' do
       staging_id = handler.initiate_staging(work_id: 'work-1', filename: 'test.bin', user_id: 1)

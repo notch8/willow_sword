@@ -7,7 +7,7 @@ module WillowSword
   module ChunkedUploadHandler
     extend ActiveSupport::Concern
 
-    def append_chunk(upload_id:, body_stream:, content_range:)
+    def append_chunk(upload_id:, body_stream:, content_range:, finalize: false)
       range = parse_content_range(content_range)
       payload_path = File.join(upload_path(upload_id), 'payload')
 
@@ -46,18 +46,22 @@ module WillowSword
         end
 
         manifest[:bytes_received] = range[:range_end] + 1
-        complete = manifest[:bytes_received] >= Integer(manifest[:total_size] || 0)
+        manifest[:total_size] ||= range[:total]
+        manifest[:total_size] ||= manifest[:bytes_received] if finalize
+
+        declared_total = manifest[:total_size] && Integer(manifest[:total_size])
+        complete = !declared_total.nil? && manifest[:bytes_received] >= declared_total
+
+        if finalize && !complete
+          raise WillowSword::SwordError.new(WillowSword::Error.new(
+            "Cannot finalize: received #{manifest[:bytes_received]} bytes but total is #{declared_total}",
+            :upload_incomplete
+          ))
+        end
 
         if complete
+          verify_checksum!(manifest, payload_path, upload_id)
           manifest[:status] = 'complete'
-          if manifest[:md5].present?
-            actual_md5 = Digest::MD5.file(payload_path).hexdigest
-            unless actual_md5 == manifest[:md5]
-              manifest[:status] = 'checksum_failed'
-              write_manifest(upload_id, manifest)
-              raise WillowSword::SwordError.new(WillowSword::Error.new("Checksum mismatch for assembled file", :checksum_mismatch))
-            end
-          end
         end
 
         write_manifest(upload_id, manifest)
@@ -115,11 +119,13 @@ module WillowSword
         manifest = read_manifest(upload_id)
         raise WillowSword::SwordError.new(WillowSword::Error.new("Upload not found", :upload_not_found)) unless manifest
 
-        max = WillowSword.setup.max_total_upload_size
-        if total_size > max
-          raise WillowSword::SwordError.new(WillowSword::Error.new(
-            "Total size #{total_size} exceeds maximum #{max}", :max_upload_size_exceeded
-          ))
+        if total_size
+          max = WillowSword.setup.max_total_upload_size
+          if total_size > max
+            raise WillowSword::SwordError.new(WillowSword::Error.new(
+              "Total size #{total_size} exceeds maximum #{max}", :max_upload_size_exceeded
+            ))
+          end
         end
 
         manifest[:total_size] = total_size
@@ -169,8 +175,7 @@ module WillowSword
     end
 
     def parse_content_range(header)
-      # Format: "bytes START-END/TOTAL"
-      match = header&.match(/\Abytes (\d+)-(\d+)\/(\d+)\z/)
+      match = header&.match(/\Abytes (\d+)-(\d+)\/(\d+|\*)\z/)
       unless match
         raise WillowSword::SwordError.new(WillowSword::Error.new("Invalid Content-Range header format", :bad_request))
       end
@@ -178,20 +183,29 @@ module WillowSword
       {
         range_start: match[1].to_i,
         range_end: match[2].to_i,
-        total: match[3].to_i
+        total: match[3] == '*' ? nil : match[3].to_i
       }
     end
 
     private
 
+    def verify_checksum!(manifest, payload_path, upload_id)
+      return if manifest[:md5].blank?
+      return if Digest::MD5.file(payload_path).hexdigest == manifest[:md5]
+
+      manifest[:status] = 'checksum_failed'
+      write_manifest(upload_id, manifest)
+      raise WillowSword::SwordError.new(WillowSword::Error.new("Checksum mismatch for assembled file", :checksum_mismatch))
+    end
+
     def validate_chunk!(manifest, range)
-      # JSON may return integers as string in some runtimes; coerce for comparisons
-      total_size = Integer(manifest[:total_size] || 0)
+      manifest_total = manifest[:total_size]
+      manifest_total = Integer(manifest_total) if manifest_total
       bytes_received = Integer(manifest[:bytes_received] || 0)
 
-      if range[:total] != total_size
+      if manifest_total && range[:total] && range[:total] != manifest_total
         raise WillowSword::SwordError.new(WillowSword::Error.new(
-          "Content-Range total (#{range[:total]}) does not match declared upload size (#{total_size})",
+          "Content-Range total (#{range[:total]}) does not match declared upload size (#{manifest_total})",
           :bad_request
         ))
       end
@@ -203,9 +217,10 @@ module WillowSword
         ))
       end
 
-      if range[:range_start].negative? || range[:range_end] >= total_size
+      known_total = manifest_total || range[:total]
+      if known_total && range[:range_end] >= known_total
         raise WillowSword::SwordError.new(WillowSword::Error.new(
-          "Content-Range bytes must be within 0..#{[total_size - 1, 0].max} for a #{total_size}-byte upload",
+          "Content-Range bytes must be within 0..#{[known_total - 1, 0].max} for a #{known_total}-byte upload",
           :bad_request
         ))
       end
@@ -218,10 +233,18 @@ module WillowSword
       end
 
       chunk_size = range[:range_end] - range[:range_start] + 1
-      max = WillowSword.setup.max_chunk_size
-      if chunk_size > max
+      max_chunk = WillowSword.setup.max_chunk_size
+      if chunk_size > max_chunk
         raise WillowSword::SwordError.new(WillowSword::Error.new(
-          "Chunk size #{chunk_size} exceeds maximum #{max}",
+          "Chunk size #{chunk_size} exceeds maximum #{max_chunk}",
+          :max_upload_size_exceeded
+        ))
+      end
+
+      max_total = WillowSword.setup.max_total_upload_size
+      if bytes_received + chunk_size > max_total
+        raise WillowSword::SwordError.new(WillowSword::Error.new(
+          "Total size #{bytes_received + chunk_size} exceeds maximum #{max_total}",
           :max_upload_size_exceeded
         ))
       end

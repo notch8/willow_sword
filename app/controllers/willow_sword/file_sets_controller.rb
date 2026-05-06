@@ -146,13 +146,16 @@ module WillowSword
           activate_staging(upload_id: staging_id, total_size: range[:total])
         end
 
+        finalize = !in_progress_deposit?
+
         result = append_chunk(
           upload_id: staging_id,
           body_stream: request.body,
-          content_range: content_range
+          content_range: content_range,
+          finalize: finalize
         )
 
-        if result[:complete] && !in_progress_deposit?
+        if result[:complete] && finalize
           finalize_staged_upload(staging_id)
         else
           @staging_id = staging_id

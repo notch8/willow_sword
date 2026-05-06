@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require 'rails_helper'
+
 RSpec.describe 'SWORD Legacy Chunked Deposit (end-to-end)', type: :request do
   let(:upload_base) { Dir.mktmpdir('chunked_uploads_test') }
 
@@ -74,6 +76,51 @@ RSpec.describe 'SWORD Legacy Chunked Deposit (end-to-end)', type: :request do
       expect(updated_work.member_ids).not_to be_empty
 
       # Verify staging directory is cleaned up
+      expect(File.exist?(File.join(upload_base, staging_id))).to be false
+    end
+
+    it 'creates a file set with unknown total size using Content-Range "bytes X-Y/*"' do
+      collection_id = admin_set_id
+      work_id = work.id.to_s
+
+      post "/sword/collections/#{collection_id}/works/#{work_id}/file_sets", headers: {
+        'Api-key' => 'test',
+        'Content-Disposition' => 'attachment; filename=testPackage.zip',
+        'In-Progress' => 'true'
+      }
+
+      doc = Nokogiri::XML(response.body)
+      staging_id = doc.at_xpath('//atom:id', 'atom' => 'http://www.w3.org/2005/Atom').text
+
+      mid = zip_size / 2
+      chunk1 = zip_data[0...mid]
+      chunk2 = zip_data[mid..]
+
+      put "/sword/collections/#{collection_id}/works/#{work_id}/file_sets/#{staging_id}", headers: {
+        'Api-key' => 'test',
+        'Content-Range' => "bytes 0-#{mid - 1}/*",
+        'Content-Type' => 'application/octet-stream',
+        'In-Progress' => 'true'
+      }, params: chunk1
+
+      expect(response).to have_http_status(:ok)
+      doc = Nokogiri::XML(response.body)
+      expect(doc.at_xpath('//status').text).to eq('in_progress')
+      expect(doc.at_xpath('//bytes_received').text).to eq(mid.to_s)
+
+      put "/sword/collections/#{collection_id}/works/#{work_id}/file_sets/#{staging_id}", headers: {
+        'Api-key' => 'test',
+        'Content-Range' => "bytes #{mid}-#{zip_size - 1}/*",
+        'Content-Type' => 'application/octet-stream',
+        'In-Progress' => 'false'
+      }, params: chunk2
+
+      expect(response).to have_http_status(:created)
+      doc = Nokogiri::XML(response.body)
+      expect(doc.root.name).to eq('feed')
+
+      updated_work = Hyrax.query_service.find_by(id: work_id)
+      expect(updated_work.member_ids).not_to be_empty
       expect(File.exist?(File.join(upload_base, staging_id))).to be false
     end
 
