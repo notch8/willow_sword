@@ -48,6 +48,18 @@ module WillowSword
           iri: 'http://purl.org/net/sword/error/MaxUploadSizeExceeded',
           code: 413
         },
+        chunk_sequence_error: {
+          iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
+          code: 409
+        },
+        upload_not_found: {
+          iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
+          code: 404
+        },
+        upload_incomplete: {
+          iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
+          code: 409
+        },
         not_found: {
           iri: 'http://purl.org/net/sword/error/ErrorBadRequest',
           code: 404

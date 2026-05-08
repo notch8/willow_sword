@@ -9,6 +9,8 @@ module WillowSword
       before_action :authorize_action, only: [:create, :show, :update]
 
       def create
+        return perform_staging_initiation if in_progress_deposit?
+
         perform_create
 
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
@@ -16,11 +18,15 @@ module WillowSword
       end
 
       def show
+        return render('willow_sword/shared/staging_status', formats: [:xml], status: :ok) if @staging_manifest
+
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
         render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :ok
       end
 
       def update
+        return perform_chunked_update if @staging_manifest
+
         perform_update
 
         xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
@@ -28,6 +34,15 @@ module WillowSword
       end
 
       private
+
+      def staging_href_for(staging_id)
+        v2_file_set_url(staging_id)
+      end
+
+      def render_finalized_entry(_manifest)
+        xw = WillowSword::V2::HykuCrosswalk.new(nil, @file_set)
+        render 'entry', formats: [:xml], variants: [:hyku], locals: { xw: xw }, status: :created
+      end
 
       def extract_metadata(file_path)
         xw = WillowSword::V2::HykuCrosswalk.new(file_path, Hyrax.config.file_set_model.constantize)
@@ -42,20 +57,41 @@ module WillowSword
           find_work_by_query(params[:work_id])
           render_work_not_found if @object.nil?
         when 'show', 'update'
-          @file_set = find_file_set
-          render_file_set_not_found if @file_set.nil?
+          # Check for staging entry first, then fall back to real Hyrax file set
+          @staging_manifest = upload_status(params[:id])
+          if @staging_manifest
+            @staging_id = params[:id]
+            @staging_href = v2_file_set_url(@staging_id)
+          else
+            @file_set = find_file_set
+            render_file_set_not_found if @file_set.nil?
+          end
         end
       end
 
       def authorize_action
+        return if performed?
+
         case action_name
-        when 'create'
-          authorize! :create, @object
-        when 'show'
-          authorize! :read, @file_set
-        when 'update'
-          authorize! :edit, @file_set
+        when 'create' then authorize! :create, @object
+        when 'show'   then authorize_view!(:read)
+        when 'update' then authorize_view!(:edit)
         end
+      end
+
+      def authorize_view!(permission)
+        return validate_staging_owner! if @staging_manifest
+
+        authorize! permission, @file_set
+      end
+
+      def validate_staging_owner!
+        # No current_user means config.authorize_request is off; fall through
+        return if @current_user.nil?
+        return if @staging_manifest[:user_id].nil?
+        return if @staging_manifest[:user_id] == @current_user.id
+
+        render_sword_error("Not authorized for this upload", :target_owner_unknown)
       end
     end
   end
