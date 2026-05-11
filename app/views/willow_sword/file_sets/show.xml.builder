@@ -30,17 +30,8 @@ if WillowSword.config.xml_mapping_read == 'Hyku'
       end
     end
 
-    # Add dc and dcterms
-    xw.dc_terms.each do |term|
-      Array.wrap(@file_set.send(term)).each do |val|
-        val = val.to_s
-        next if val.blank?
-
-        prefix = xw.dc_terms_to_fallback_to_dc.include?(term) ? 'dc' : xw.prefix_lookup_for(term)
-        translated_term = xw.term_translation_mappings[term] || term
-        xml.tag!(:"#{prefix}:#{translated_term}", val)
-      end
-    end
+    # Add dc and dcterms (driven by M3 schema mappings)
+    xw.add_dc_metadata_to_xml(xml)
   end
 else
   xml.feed(xmlns:"http://www.w3.org/2005/Atom",
