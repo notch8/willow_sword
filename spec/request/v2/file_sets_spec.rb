@@ -29,23 +29,23 @@ RSpec.describe 'SWORD FileSets', type: :request do
       expect(doc.root.xpath('h4csys:label', ns).text).to eq 'image.png'
     end
 
-    it 'renders file set metadata as DC terms' do
+    it 'renders settable + system metadata under h4cmeta / h4csys' do
       get "/sword/v2/file_sets/#{file_set.id}", headers: { 'Api-key' => 'test' }
 
       doc = Nokogiri::XML(response.body)
 
-      # File set title is mapped to dc:title via the DC fallback
-      expect(doc.root.xpath('dc:title', ns).text).to eq 'Test File Set'
-
-      # File set creator is mapped to dc:creator via the DC fallback
-      expect(doc.root.xpath('dc:creator', ns).text).to eq 'admin@example.com'
-
-      # Settable metadata is also rendered under h4cmeta
       expect(doc.root.xpath('h4cmeta:title', ns).text).to eq 'Test File Set'
       expect(doc.root.xpath('h4cmeta:creator', ns).text).to eq 'admin@example.com'
-
-      # System metadata is rendered under h4csys
       expect(doc.root.xpath('h4csys:internal_resource', ns).text).to eq 'FileSet'
+    end
+
+    it 'does not emit dc/dcterms for terms without schema mappings' do
+      get "/sword/v2/file_sets/#{file_set.id}", headers: { 'Api-key' => 'test' }
+
+      doc = Nokogiri::XML(response.body)
+
+      expect(doc.root.xpath('dc:title', ns)).to be_empty
+      expect(doc.root.xpath('dc:creator', ns)).to be_empty
     end
 
     context 'when the schema declares simple_dc_pmh / qualified_dc_pmh mappings' do
@@ -128,17 +128,15 @@ RSpec.describe 'SWORD FileSets', type: :request do
         File.read(WillowSword::Engine.root.join('spec', 'fixtures', 'v2', 'fileSetTestPackage.zip'))
       end
 
-      it 'renders created file set metadata as DC terms' do
+      it 'renders created file set metadata under h4cmeta / h4csys' do
         post '/sword/v2/works/work-1/file_sets', headers: headers, params: params
 
         doc = Nokogiri::XML(response.body)
         ns = {
-          'dc' => 'http://purl.org/dc/elements/1.1/',
           'h4cmeta' => 'https://hykucommons.org/schema/metadata',
           'h4csys' => 'https://hykucommons.org/schema/system'
         }
 
-        expect(doc.root.xpath('dc:title', ns).text).to eq 'My title'
         expect(doc.root.xpath('h4cmeta:title', ns).text).to eq 'My title'
         expect(doc.root.xpath('h4csys:internal_resource', ns).text).to eq 'FileSet'
       end
@@ -221,17 +219,6 @@ RSpec.describe 'SWORD FileSets', type: :request do
       expect(doc.root.xpath('h4cmeta:visibility_after_embargo', ns).text).to eq('authenticated')
       expect(doc.root.xpath('h4cmeta:visibility_during_embargo', ns).text).to eq('restricted')
       expect(doc.root.xpath('h4cmeta:creator', ns).text).to eq('someone_else@example.com')
-    end
-
-    it 'renders updated metadata as DC terms' do
-      allow_any_instance_of(Hyrax::FileMetadata).to receive(:mime_type).and_return('image/png')
-
-      put "/sword/v2/file_sets/#{file_set.id}", headers: headers, params: params
-
-      doc = Nokogiri::XML(response.body)
-
-      expect(doc.root.xpath('dc:title', ns).text).to eq 'Updated FileSet Title'
-      expect(doc.root.xpath('dc:creator', ns).text).to eq 'someone_else@example.com'
     end
 
     context 'when the schema declares simple_dc_pmh / qualified_dc_pmh mappings' do

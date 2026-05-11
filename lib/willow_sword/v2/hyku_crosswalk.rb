@@ -53,49 +53,6 @@ module WillowSword
           date_uploaded depositor state label).select { |term| terms_from_schema.include?(term) }
       end
 
-      # @returns [Array<String>] a list of Dublin Core terms used in the object
-      def dc_terms
-        @dc_terms ||= (terms + system_terms).uniq.select do |term|
-          prefix = prefix_lookup_for(term)
-          prefix == 'dc' || prefix == 'dcterms' || dc_terms_to_fallback_to_dc.include?(term)
-        end
-      end
-
-      # @returns [Hash] a hash of term translations for the object's schema
-      def term_translation_mappings
-        @term_translation_mappings ||= {
-          'date_modified'          => 'modified',
-          'date_uploaded'          => 'dateSubmitted',
-          'depositor'              => 'dpt',
-          'access_right'           => 'accessRights',
-          'alternative_title'      => 'alternative',
-          'bibliographic_citation' => 'bibliographicCitation',
-          'date_created'           => 'date',
-          'import_url'             => 'importUrl',
-          'keyword'                => 'keywords',
-          'label'                  => 'downloadFilename',
-          'related_url'            => 'seeAlso',
-          'rights_statement'       => 'rights',
-          'resource_type'          => 'type',
-          'rights_notes'           => 'rights',
-          'additional_information' => 'accessRights',
-          'admin_note'             => 'positiveNotes',
-          'education_level'        => 'educationLevel',
-          'learning_resource_type' => 'learningResourceType',
-          'discipline'             => 'degree_discipline',
-          'accessibility_feature'  => 'accessibilityFeature',
-          'accessibility_hazard'   => 'accessibilityHazard',
-          'accessibility_summary'  => 'accessibilitySummary',
-          'oer_size'               => 'extent',
-          'rights_holder'          => 'rightsHolder',
-          'table_of_contents'      => 'tableOfContents',
-          'previous_version_id'    => 'replaces',
-          'newer_version_id'       => 'isReplacedBy',
-          'alternate_version_id'   => 'hasVersion',
-          'related_item_id'        => 'relation'
-        }
-      end
-
       def translated_terms
         {
           'created' =>'date_created',
@@ -107,30 +64,6 @@ module WillowSword
 
       def singular
         object_klass.user_settable_attributes.map(&:to_s) - object_klass.multiple_attributes.map(&:to_s) + visibility_terms
-      end
-
-      # DC Terms is a superset of Dublin Core, meaning all original DC elements
-      # are also available in the DC Terms namespace. Initially, the plan was to
-      # support only DC Terms (`dcterms`), but metadata experts pointed out that
-      # legacy clients may only recognize the older DC (`dc`) namespace.
-      #
-      # To ensure compatibility, this method lists the Hyrax/Hyku terms that
-      # should fallback to `dc` even if their predicates are assigned to `dcterms`.
-      #
-      # Example XML output:
-      #   <dc:title>Test Record</dc:title>
-      #
-      # Instead of:
-      #   <dcterms:title>Test Record</dcterms:title>
-      #
-      # The `dc` version ensures backward compatibility.
-      #
-      # @return [Array<String>] An array of Hyrax/Hyku terms that the object responds to
-      #   that should be mapped to `dc` even if it's considered `dcterms` by Hyrax/Hyku.
-      def dc_terms_to_fallback_to_dc
-        @dc_terms_to_fallback_to_dc ||= %w(contributor coverage creator date_created description format
-          identifier language publisher related_item_id rights_holder source
-          rights_notes rights_statement subject title resource_type).select { |term| object.respond_to?(term) }
       end
 
       def map_xml
@@ -195,13 +128,15 @@ module WillowSword
         end
       end
 
-      # Renders dc and dcterms metadata.
+      # Renders dc and dcterms metadata driven entirely by the M3 schema's
+      # `mappings.simple_dc_pmh` and `mappings.qualified_dc_pmh` declarations.
+      # A term with no mapping in either is not emitted under dc/dcterms.
       def add_dc_metadata_to_xml(xml)
         simple_mappings = simple_dc_mappings_from_schema
         qualified_mappings = qualified_dc_mappings_from_schema
         schema_terms = (simple_mappings.keys + qualified_mappings.keys).uniq.select { |t| @object.respond_to?(t) }
 
-        (dc_terms + schema_terms).uniq.each do |term|
+        schema_terms.each do |term|
           Array.wrap(@object.send(term)).each do |val|
             val = val.to_s
             next if val.blank?
@@ -222,15 +157,6 @@ module WillowSword
           xml.tag!(:"#{key}", val)
           seen_keys << key
         end
-
-        return unless dc_terms.include?(term)
-
-        prefix = dc_terms_to_fallback_to_dc.include?(term) ? 'dc' : prefix_lookup_for(term)
-        translated_term = term_translation_mappings[term] || term
-        key = "#{prefix}:#{translated_term}"
-        return if seen_keys.include?(key)
-
-        xml.tag!(:"#{key}", val)
       end
 
       # Takes the object's schema and returns a hash of predicate mappings for terms

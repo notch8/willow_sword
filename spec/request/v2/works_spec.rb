@@ -75,33 +75,61 @@ RSpec.describe 'SWORD Works', type: :request do
     end
 
     context 'when the schema declares simple_dc_pmh / qualified_dc_pmh mappings' do
-      before do
+      def patch_schema_mappings(mappings_by_term)
         patched_keys = Monograph.schema.keys.map do |k|
-          next k unless k.name.to_s == 'title'
+          override = mappings_by_term[k.name.to_s]
+          next k unless override
 
-          patched_meta = k.meta.merge(
-            'mappings' => {
-              'simple_dc_pmh' => 'dc:title',
-              'qualified_dc_pmh' => 'dcterms:title'
-            }
-          )
-          Struct.new(:name, :meta).new(k.name, patched_meta)
+          Struct.new(:name, :meta).new(k.name, k.meta.merge('mappings' => override))
         end
         patched_schema = double('Schema', keys: patched_keys)
         allow_any_instance_of(WillowSword::V2::HykuCrosswalk)
           .to receive(:object_schema).and_return(patched_schema)
       end
 
-      it 'renders <dc:title> and <dcterms:title> per the schema mappings' do
-        get '/sword/v2/works/work-123', headers: { 'Api-key' => 'test' }
-
-        doc = Nokogiri::XML(response.body)
-        ns = {
+      let(:ns) do
+        {
           'dc' => 'http://purl.org/dc/elements/1.1/',
           'dcterms' => 'http://purl.org/dc/terms/'
         }
+      end
+
+      it 'renders <dc:title> and <dcterms:title> per the schema mappings' do
+        patch_schema_mappings(
+          'title' => { 'simple_dc_pmh' => 'dc:title', 'qualified_dc_pmh' => 'dcterms:title' }
+        )
+
+        get '/sword/v2/works/work-123', headers: { 'Api-key' => 'test' }
+
+        doc = Nokogiri::XML(response.body)
         expect(doc.root.xpath('dc:title', ns).text).to eq 'Test Work'
         expect(doc.root.xpath('dcterms:title', ns).text).to eq 'Test Work'
+      end
+
+      it 'does not emit dc/dcterms for terms with no mapping' do
+        patch_schema_mappings(
+          'title' => { 'simple_dc_pmh' => 'dc:title', 'qualified_dc_pmh' => 'dcterms:title' }
+        )
+
+        get '/sword/v2/works/work-123', headers: { 'Api-key' => 'test' }
+
+        doc = Nokogiri::XML(response.body)
+        expect(doc.root.xpath('dc:description', ns)).to be_empty
+        expect(doc.root.xpath('dcterms:description', ns)).to be_empty
+        expect(doc.root.xpath('dc:creator', ns)).to be_empty
+        expect(doc.root.xpath('dcterms:creator', ns)).to be_empty
+      end
+
+      it 'emits only the declared namespace when only one of simple/qualified is set' do
+        patch_schema_mappings(
+          'title' => { 'qualified_dc_pmh' => 'dcterms:title' }
+        )
+
+        get '/sword/v2/works/work-123', headers: { 'Api-key' => 'test' }
+
+        doc = Nokogiri::XML(response.body)
+        expect(doc.root.xpath('dcterms:title', ns).text).to eq 'Test Work'
+        expect(doc.root.xpath('dc:title', ns)).to be_empty
       end
     end
   end
