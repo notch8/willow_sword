@@ -83,31 +83,79 @@ RSpec.describe 'willow_sword/works/show.xml+hyku.builder', type: :view do
         <h4cmeta:source>Test source</h4cmeta:source>
         <h4cmeta:subject>Test subject</h4cmeta:subject>
         <h4cmeta:video_embed>https://www.youtube.com/embed/Znf73dsFdC8</h4cmeta:video_embed>
-        <dc:title>Test Title</dc:title>
-        <dcterms:abstract>Test abstract</dcterms:abstract>
-        <dcterms:accessRights>Test access right</dcterms:accessRights>
-        <dcterms:alternative>Test alternative title</dcterms:alternative>
-        <dcterms:bibliographicCitation>Test bibliographic citation</dcterms:bibliographicCitation>
-        <dc:contributor>Test contributor</dc:contributor>
-        <dc:creator>Test creator</dc:creator>
-        <dc:creator>Test creator 2</dc:creator>
-        <dc:date>2020-01-01</dc:date>
-        <dc:description>Test description</dc:description>
-        <dc:identifier>test123</dc:identifier>
-        <dc:publisher>Test publisher</dc:publisher>
-        <dc:language>en</dc:language>
-        <dcterms:license>https://creativecommons.org/licenses/by-nc/4.0/</dcterms:license>
-        <dc:type>Audio</dc:type>
-        <dc:type>Capstone Project</dc:type>
-        <dc:rights>Test rights notes</dc:rights>
-        <dc:rights>http://rightsstatements.org/vocab/NoC-CR/1.0/</dc:rights>
-        <dc:source>Test source</dc:source>
-        <dc:subject>Test subject</dc:subject>
-        <dcterms:modified>2020-01-01T00:00:00+00:00</dcterms:modified>
-        <dcterms:dateSubmitted>2020-01-01T00:00:00+00:00</dcterms:dateSubmitted>
       </feed>
     XML
 
     expect(actual_doc.to_xml).to eq(expected_doc.to_xml)
+  end
+
+  context 'when the schema declares simple_dc_pmh / qualified_dc_pmh mappings' do
+    # Mirrors the canonical mapping set the legacy hardcoded fallback emitted,
+    # exercised end-to-end through the schema-driven path.
+    let(:dc_mappings_by_term) do
+      {
+        'title'                  => { 'simple_dc_pmh' => 'dc:title' },
+        'abstract'               => { 'qualified_dc_pmh' => 'dcterms:abstract' },
+        'access_right'           => { 'qualified_dc_pmh' => 'dcterms:accessRights' },
+        'alternative_title'      => { 'qualified_dc_pmh' => 'dcterms:alternative' },
+        'bibliographic_citation' => { 'qualified_dc_pmh' => 'dcterms:bibliographicCitation' },
+        'contributor'            => { 'simple_dc_pmh' => 'dc:contributor' },
+        'creator'                => { 'simple_dc_pmh' => 'dc:creator' },
+        'date_created'           => { 'simple_dc_pmh' => 'dc:date' },
+        'description'            => { 'simple_dc_pmh' => 'dc:description' },
+        'identifier'             => { 'simple_dc_pmh' => 'dc:identifier' },
+        'publisher'              => { 'simple_dc_pmh' => 'dc:publisher' },
+        'language'               => { 'simple_dc_pmh' => 'dc:language' },
+        'license'                => { 'qualified_dc_pmh' => 'dcterms:license' },
+        'resource_type'          => { 'simple_dc_pmh' => 'dc:type' },
+        'rights_notes'           => { 'simple_dc_pmh' => 'dc:rights' },
+        'rights_statement'       => { 'simple_dc_pmh' => 'dc:rights' },
+        'source'                 => { 'simple_dc_pmh' => 'dc:source' },
+        'subject'                => { 'simple_dc_pmh' => 'dc:subject' },
+        'date_modified'          => { 'qualified_dc_pmh' => 'dcterms:modified' },
+        'date_uploaded'          => { 'qualified_dc_pmh' => 'dcterms:dateSubmitted' }
+      }
+    end
+
+    before do
+      patched_keys = work.class.schema.keys.map do |k|
+        override = dc_mappings_by_term[k.name.to_s]
+        next k unless override
+
+        patched_meta = (k.meta || {}).merge('mappings' => override)
+        Struct.new(:name, :meta).new(k.name, patched_meta)
+      end
+      allow(work.class).to receive(:schema).and_return(double('Schema', keys: patched_keys))
+    end
+
+    it 'renders dc and dcterms tags per the schema mappings' do
+      render template: 'willow_sword/works/show', variants: [:hyku]
+      doc = Nokogiri::XML(rendered)
+      ns = {
+        'atom' => 'http://www.w3.org/2005/Atom',
+        'dc' => 'http://purl.org/dc/elements/1.1/',
+        'dcterms' => 'http://purl.org/dc/terms/'
+      }
+
+      expect(doc.root.xpath('dc:title', ns).text).to eq 'Test Title'
+      expect(doc.root.xpath('dcterms:abstract', ns).text).to eq 'Test abstract'
+      expect(doc.root.xpath('dcterms:accessRights', ns).text).to eq 'Test access right'
+      expect(doc.root.xpath('dcterms:alternative', ns).text).to eq 'Test alternative title'
+      expect(doc.root.xpath('dcterms:bibliographicCitation', ns).text).to eq 'Test bibliographic citation'
+      expect(doc.root.xpath('dc:contributor', ns).text).to eq 'Test contributor'
+      expect(doc.root.xpath('dc:creator', ns).map(&:text)).to eq ['Test creator', 'Test creator 2']
+      expect(doc.root.xpath('dc:date', ns).text).to eq '2020-01-01'
+      expect(doc.root.xpath('dc:description', ns).text).to eq 'Test description'
+      expect(doc.root.xpath('dc:identifier', ns).text).to eq 'test123'
+      expect(doc.root.xpath('dc:publisher', ns).text).to eq 'Test publisher'
+      expect(doc.root.xpath('dc:language', ns).text).to eq 'en'
+      expect(doc.root.xpath('dcterms:license', ns).text).to eq 'https://creativecommons.org/licenses/by-nc/4.0/'
+      expect(doc.root.xpath('dc:type', ns).map(&:text)).to eq ['Audio', 'Capstone Project']
+      expect(doc.root.xpath('dc:rights', ns).map(&:text)).to eq ['Test rights notes', 'http://rightsstatements.org/vocab/NoC-CR/1.0/']
+      expect(doc.root.xpath('dc:source', ns).text).to eq 'Test source'
+      expect(doc.root.xpath('dc:subject', ns).text).to eq 'Test subject'
+      expect(doc.root.xpath('dcterms:modified', ns).text).to eq '2020-01-01T00:00:00+00:00'
+      expect(doc.root.xpath('dcterms:dateSubmitted', ns).text).to eq '2020-01-01T00:00:00+00:00'
+    end
   end
 end

@@ -53,24 +53,35 @@ RSpec.describe WillowSword::HykuCrosswalk, type: :request do
     end
   end
 
-  describe '#dc_terms' do
-    it 'includes dublin core terms' do
-      expect(xw.dc_terms).to include(
-        'title', 'creator', 'description',
-        'identifier', 'publisher', 'language'
-      )
-    end
-  end
+  describe '#add_dc_metadata_to_xml' do
+    let(:xml) { Builder::XmlMarkup.new }
+    let(:doc) { Nokogiri::XML("<root xmlns:dc='http://purl.org/dc/elements/1.1/' xmlns:dcterms='http://purl.org/dc/terms/'>#{xml.target!}</root>") }
+    let(:ns) { { 'dc' => 'http://purl.org/dc/elements/1.1/', 'dcterms' => 'http://purl.org/dc/terms/' } }
 
-  describe '#term_translation_mappings' do
-    it 'returns hash of Hyrax/Hyku property keys and translated values' do
-      mappings = xw.term_translation_mappings
-      expect(mappings).to include(
-        'date_modified' => 'modified',
-        'date_uploaded' => 'dateSubmitted',
-        'access_right' => 'accessRights',
-        'alternative_title' => 'alternative'
-      )
+    context 'when the schema declares simple_dc_pmh / qualified_dc_pmh mappings' do
+      before do
+        patched_keys = work.class.schema.keys.map do |k|
+          next k unless k.name.to_s == 'title'
+
+          patched_meta = (k.meta || {}).merge(
+            'mappings' => { 'simple_dc_pmh' => 'dc:title', 'qualified_dc_pmh' => 'dcterms:title' }
+          )
+          Struct.new(:name, :meta).new(k.name, patched_meta)
+        end
+        allow(work.class).to receive(:schema).and_return(double('Schema', keys: patched_keys))
+      end
+
+      it 'renders <dc:title> and <dcterms:title>' do
+        xw.add_dc_metadata_to_xml(xml)
+        expect(doc.root.xpath('dc:title', ns).text).to eq 'Test Title'
+        expect(doc.root.xpath('dcterms:title', ns).text).to eq 'Test Title'
+      end
+    end
+
+    it 'emits nothing for terms without schema mappings' do
+      xw.add_dc_metadata_to_xml(xml)
+      expect(doc.root.xpath('dc:*', ns)).to be_empty
+      expect(doc.root.xpath('dcterms:*', ns)).to be_empty
     end
   end
 

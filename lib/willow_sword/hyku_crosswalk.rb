@@ -48,70 +48,22 @@ module WillowSword
          date_uploaded depositor state).select { |term| work.respond_to?(term) }
     end
 
-    # @returns [Array<String>] a list of Dublin Core terms used in the work
-    def dc_terms
-      (terms + system_terms).uniq.select do |term|
-        prefix_lookup_for(term) == 'dc' || prefix_lookup_for(term) == 'dcterms' || dc_terms_to_fallback_to_dc.include?(term)
+    # Renders dc and dcterms metadata driven entirely by the M3 schema's
+    # `mappings.simple_dc_pmh` and `mappings.qualified_dc_pmh` declarations.
+    # A term with no mapping in either is not emitted under dc/dcterms.
+    def add_dc_metadata_to_xml(xml)
+      simple_mappings = simple_dc_mappings_from_schema
+      qualified_mappings = qualified_dc_mappings_from_schema
+      schema_terms = (simple_mappings.keys + qualified_mappings.keys).uniq.select { |t| work.respond_to?(t) }
+
+      schema_terms.each do |term|
+        Array.wrap(work.send(term)).each do |val|
+          val = val.to_s
+          next if val.blank?
+
+          render_dc_term(xml, term, val, simple_mappings, qualified_mappings)
+        end
       end
-    end
-
-    # @returns [Hash] a hash of term translations for the work's schema
-    def term_translation_mappings
-      {
-        'date_modified'          => 'modified',
-        'date_uploaded'          => 'dateSubmitted',
-        'depositor'              => 'dpt',
-        'access_right'           => 'accessRights',
-        'alternative_title'      => 'alternative',
-        'bibliographic_citation' => 'bibliographicCitation',
-        'date_created'           => 'date',
-        'import_url'             => 'importUrl',
-        'keyword'                => 'keywords',
-        'label'                  => 'downloadFilename',
-        'related_url'            => 'seeAlso',
-        'rights_statement'       => 'rights',
-        'resource_type'          => 'type',
-        'rights_notes'           => 'rights',
-        'additional_information' => 'accessRights',
-        'admin_note'             => 'positiveNotes',
-        'education_level'        => 'educationLevel',
-        'learning_resource_type' => 'learningResourceType',
-        'discipline'             => 'degree_discipline',
-        'accessibility_feature'  => 'accessibilityFeature',
-        'accessibility_hazard'   => 'accessibilityHazard',
-        'accessibility_summary'  => 'accessibilitySummary',
-        'oer_size'               => 'extent',
-        'rights_holder'          => 'rightsHolder',
-        'table_of_contents'      => 'tableOfContents',
-        'previous_version_id'    => 'replaces',
-        'newer_version_id'       => 'isReplacedBy',
-        'alternate_version_id'   => 'hasVersion',
-        'related_item_id'        => 'relation'
-      }
-    end
-
-    # DC Terms is a superset of Dublin Core, meaning all original DC elements
-    # are also available in the DC Terms namespace. Initially, the plan was to
-    # support only DC Terms (`dcterms`), but metadata experts pointed out that
-    # legacy clients may only recognize the older DC (`dc`) namespace.
-    #
-    # To ensure compatibility, this method lists the Hyrax/Hyku terms that
-    # should fallback to `dc` even if their predicates are assigned to `dcterms`.
-    #
-    # Example XML output:
-    #   <dc:title>Test Record</dc:title>
-    #
-    # Instead of:
-    #   <dcterms:title>Test Record</dcterms:title>
-    #
-    # The `dc` version ensures backward compatibility.
-    #
-    # @return [Array<String>] An array of Hyrax/Hyku terms that the work responds to
-    #   that should be mapped to `dc` even if it's considered `dcterms` by Hyrax/Hyku.
-    def dc_terms_to_fallback_to_dc
-      %w(contributor coverage creator date_created description format
-         identifier language publisher related_item_id rights_holder source
-         rights_notes rights_statement subject title resource_type).select { |term| work.respond_to?(term) }
     end
 
     # Convert the visibility to read either 'embargo' or 'lease' when active.
@@ -148,6 +100,34 @@ module WillowSword
     # @returns [Array<String>] a list of terms from the work's schema
     def terms_from_schema
       work_klass.schema.keys.map { |field| field.name.to_s }
+    end
+
+    def simple_dc_mappings_from_schema
+      dc_mappings_from_schema('simple_dc_pmh')
+    end
+
+    def qualified_dc_mappings_from_schema
+      dc_mappings_from_schema('qualified_dc_pmh')
+    end
+
+    def dc_mappings_from_schema(key)
+      work_klass.schema.keys.each_with_object({}) do |field, h|
+        val = field.meta&.dig('mappings', key)
+        h[field.name.to_s] = val if val
+      end
+    end
+
+    def render_dc_term(xml, term, val, simple_mappings, qualified_mappings)
+      seen_keys = []
+
+      [simple_mappings[term], qualified_mappings[term]].compact.each do |mapping_value|
+        prefix, local = mapping_value.split(':', 2)
+        key = "#{prefix}:#{local}"
+        next if seen_keys.include?(key)
+
+        xml.tag!(:"#{key}", val)
+        seen_keys << key
+      end
     end
 
     # @returns [Array<String>] a list of terms used in the work to be included in the crosswalk
