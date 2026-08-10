@@ -1,3 +1,5 @@
+require 'digest'
+
 module WillowSword
   module ProcessRequest
     extend ActiveSupport::Concern
@@ -34,7 +36,7 @@ module WillowSword
 
     def validate_payload
       return true if @headers[:md5hash].nil?
-      md5 = `md5sum "#{@file.path}" | awk '{ print $1 }'`.strip
+      md5 = Digest::MD5.file(@file.path).hexdigest
       if md5 == @headers[:md5hash]
         true
       else

@@ -25,14 +25,48 @@ module WillowSword
     end
 
     def fetch_filename
-      @headers[:filename] = nil
       cd = request.headers.fetch('Content-Disposition', '')
-      if cd.include? '='
-        @headers[:filename] = cd.split('=')[-1].strip()
+      @headers[:filename] = sanitize_filename(extract_cd_filename(cd))
+    end
+
+    # Prefers RFC 5987/6266 filename* over filename, matching parameter names
+    # exactly (case-insensitive) and respecting quoted-string boundaries so a
+    # filename*= inside a quoted value or a name like xfilename* can't win.
+    # RFC 2231 continuations (filename*0, filename*1) are not reassembled.
+    def extract_cd_filename(cd)
+      return nil if cd.blank?
+      params = {}
+      cd.scan(/(?:\A|;)\s*([^\s=;]+)\s*=\s*("(?:[^"\\]|\\.)*"|[^;]*)/) do |name, val|
+        val = val.start_with?('"') ? val[1..-2].gsub(/\\(.)/, '\1') : val.strip
+        params[name.downcase] ||= val
       end
-      if @headers[:filename].blank?
-        @headers[:filename] = SecureRandom.uuid
+      if params.key?('filename*')
+        decode_ext_value(params['filename*'])
+      elsif params.key?('filename')
+        params['filename']
       end
+    end
+
+    # RFC 5987 ext-value: charset'lang'percent-encoded-value
+    def decode_ext_value(val)
+      charset, _lang, encoded = val.split("'", 3)
+      encoded ||= charset # no charset'lang' prefix; treat whole thing as value
+      bytes = encoded.gsub(/%([0-9a-fA-F]{2})/) { $1.hex.chr }
+      src = charset.to_s.casecmp?('iso-8859-1') ? Encoding::ISO_8859_1 : Encoding::UTF_8
+      bytes.force_encoding(src).encode(Encoding::UTF_8, invalid: :replace, undef: :replace)
+    end
+
+    # Blocks path traversal and control/bidi chars. Spaces, unicode, and shell
+    # metacharacters are preserved and safe only because nothing shells out with
+    # this value (see validate_payload, get_content_type) - keep it that way.
+    def sanitize_filename(name)
+      # Header bytes arrive as ASCII-8BIT; tag as UTF-8 so the control/bidi
+      # regex below is encoding-compatible, then scrub any invalid sequences.
+      name = name.to_s.dup.force_encoding(Encoding::UTF_8).scrub('').strip
+      name = name.gsub(/[\u0000-\u001f\u007f\u200e\u200f\u202a-\u202e\u2066-\u2069]/, %q())
+      name = File.basename(name).tr('/\\', '_')
+      return SecureRandom.uuid if name.blank? || name == '.' || name == '..'
+      name
     end
 
     def fetch_md5hash
