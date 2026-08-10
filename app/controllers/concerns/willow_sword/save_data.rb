@@ -1,5 +1,6 @@
 require 'fileutils'
 require 'securerandom'
+require 'marcel'
 module WillowSword
   module SaveData
 
@@ -72,7 +73,7 @@ module WillowSword
           if is_metadata
             new_file_name = 'metadata.xml'
           else
-            new_file_name = data.original_filename
+            new_file_name = sanitize_filename(data.original_filename)
           end
           path = File.join(@dir, new_file_name)
           tmp = data.tempfile
@@ -105,6 +106,9 @@ module WillowSword
       if content_type == 'application/zip'
         zp = WillowSword::ZipPackage.new(file_path, contents_path)
         zp.unzip_file
+        # A symlink in the archive would be dereferenced by the later bagit copy,
+        # ingesting the contents of whatever server file it points at.
+        reject_symlinks!(contents_path)
         validate_bagit(zp.dst) if @headers[:packaging] == 'http://purl.org/net/sword/package/BagIt'
       else
         # Copy file to contents dir
@@ -124,9 +128,33 @@ module WillowSword
     end
 
     def get_content_type(file_path)
-      # @extension = Rack::Mime::MIME_TYPES.invert[mime_type]
-      # Not matching content_type and packaging from headers with that computed.
-      return `file --b --mime-type "#{file_path}"`.strip
+      # Detect by content only (open as IO, no name hint) so a misleading
+      # extension can't steer archive handling, matching the old `file` check.
+      File.open(file_path, 'rb') { |io| Marcel::MimeType.for(io) }
+    end
+
+    def reject_symlinks!(dir)
+      link = find_symlink(dir)
+      return unless link
+      message = "Archive contains a symbolic link, which is not allowed"
+      # Set @error (the work controller's local rescue keeps status only when
+      # it's present) and raise a real exception wrapper for the other paths.
+      @error = WillowSword::Error.new(message, :unprocessable_entity)
+      raise WillowSword::SwordError.new(@error)
+    end
+
+    # Recursively finds the first symlink under dir without following symlinked
+    # directories (the symlink? check precedes the directory? descent).
+    def find_symlink(dir)
+      Dir.each_child(dir) do |name|
+        path = File.join(dir, name)
+        return path if File.symlink?(path)
+        if File.directory?(path)
+          found = find_symlink(path)
+          return found if found
+        end
+      end
+      nil
     end
 
     def validate_bagit(file_path)
@@ -135,7 +163,8 @@ module WillowSword
       unless bag.valid?
         error_details = bag.errors.any? ? bag.errors.errors.values.join('; ') : ''
         message = "Invalid BagIt package: #{error_details}"
-        raise @error = WillowSword::Error.new(message, :unprocessable_entity)
+        @error = WillowSword::Error.new(message, :unprocessable_entity)
+        raise WillowSword::SwordError.new(@error)
       end
 
       true
