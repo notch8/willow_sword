@@ -33,6 +33,18 @@ bundle exec rails generate willow_sword:install
 ## Configuration
 The plugin has a few configuration options. To view the current default options and override these, see [configuration options](https://github.com/CottageLabs/willow_sword/wiki/Configuring-willow-sword)
 
+### SWORD link host behind a proxy
+By default SWORD links (service document collection hrefs, `edit`, `edit-media`, `related` and `Location` headers) use the request host. If a proxy rewrites `Host` (for example so a multi-tenant app can resolve the tenant) and passes the host the client called in another header, name that header and list the hosts it may carry:
+
+```ruby
+WillowSword.setup do |config|
+  config.sword_host_header = 'X-Sword-Host'
+  config.sword_allowed_hosts = ['sword.example.org']
+end
+```
+
+The header is ignored, and the request host used, unless its value is a bare hostname that exactly matches (case-insensitively) an entry in `sword_allowed_hosts`. Clients can send any header they like, so without the allow-list a client could put its own host into the links. Both settings default to off (`nil` and `[]`), which leaves links unchanged. Content links (work pages, file downloads) always stay on the request host.
+
 ## Enable authorization
 If you would like to authorize all Sword requests using an Api-key header, see [Enabling authorization](https://github.com/CottageLabs/willow_sword/wiki/Enabling-Authorization-In-Willow-Sword)
 
