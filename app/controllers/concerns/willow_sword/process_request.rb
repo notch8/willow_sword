@@ -9,6 +9,20 @@ module WillowSword
     include WillowSword::SaveData
     include WillowSword::ExtractMetadata
 
+    included do
+      around_action :remove_deposit_dir
+    end
+
+    # Safe to delete here: Hyrax::UploadedFile has already copied each payload
+    # into the uploads store, which is what the ingest jobs read.
+    def remove_deposit_dir
+      yield
+    ensure
+      @file.close if @file.respond_to?(:closed?) && !@file.closed?
+      FileUtils.rm_rf(@dir) if @dir.present?
+    end
+    private :remove_deposit_dir
+
     def validate_and_save_request
       # Choose based on content type
       return false unless validate_target_user

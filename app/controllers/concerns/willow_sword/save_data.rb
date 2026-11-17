@@ -19,7 +19,7 @@ module WillowSword
     end
 
     def save_atom_xml_data
-      xml_path = fetch_data(request.body.read, 'xml', true)
+      xml_path = fetch_data(request.body, 'xml', true)
       organize_data(xml_path)
       parse_metadata(xml_path)
       verify_data
@@ -64,10 +64,7 @@ module WillowSword
       when 'binary'
         new_file_name = @headers[:filename]
         path = File.join(@dir, new_file_name)
-        data.rewind
-        File.open(path, 'wb') do |f|
-          data.each { |line| f.write(line) }
-        end
+        copy_body(data, path)
       else
         if data.kind_of? ActionDispatch::Http::UploadedFile
           if is_metadata
@@ -84,12 +81,19 @@ module WillowSword
           end
           new_file_name = new_file_name || SecureRandom.uuid
           path = File.join(@dir, new_file_name)
-          File.open(path, 'wb') do |f|
-            f.write(data)
+          if data.respond_to?(:read)
+            copy_body(data, path)
+          else
+            File.open(path, 'wb') { |f| f.write(data) }
           end
         end
       end
       path
+    end
+
+    def copy_body(io, path)
+      io.rewind if io.respond_to?(:rewind)
+      File.open(path, 'wb') { |f| IO.copy_stream(io, f) }
     end
 
     def assign_payload(path)
