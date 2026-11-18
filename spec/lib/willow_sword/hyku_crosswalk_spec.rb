@@ -1,3 +1,4 @@
+require 'builder'
 require 'rails_helper'
 require 'willow_sword/hyku_crosswalk'
 require 'support/hyku_crosswalk_helper'

@@ -29,4 +29,10 @@ WillowSword.setup do |config|
   config.chunked_upload_path = 'tmp/network_files/willow_sword'
   # Maximum total file size for a single chunked upload (default 2GB)
   config.max_total_upload_size = 2 * 1024 * 1024 * 1024
+  # Request header holding the hostname SWORD links should use, for proxies that rewrite Host
+  # (e.g. 'X-Sword-Host'). nil builds links on the request host. Content links always use the request host.
+  config.sword_host_header = nil
+  # Hostnames the sword_host_header may carry (exact, case-insensitive match).
+  # Empty means the header is never honoured.
+  config.sword_allowed_hosts = []
 end
