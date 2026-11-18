@@ -42,4 +42,57 @@ RSpec.describe WillowSword::V2::WorksController, type: :controller do
       expect(controller.instance_variable_get(:@error)).to be_nil
     end
   end
+  describe '#fetch_data (binary request body)' do
+    # Behaves like a rack input: #each yields up to the next newline, so a body
+    # with no newlines comes back as one string the size of the whole body.
+    let(:body_class) do
+      Class.new do
+        attr_reader :largest_chunk
+
+        def initialize(content)
+          @io = StringIO.new(content)
+          @largest_chunk = 0
+        end
+
+        def rewind
+          @io.rewind
+        end
+
+        def read(length = nil, outbuf = nil)
+          track(@io.read(length, outbuf))
+        end
+
+        def each
+          while (line = @io.gets)
+            yield track(line)
+          end
+        end
+
+        private
+
+        def track(chunk)
+          @largest_chunk = [@largest_chunk, chunk.bytesize].max if chunk
+          chunk
+        end
+      end
+    end
+    let(:content) { 'a' * 8.megabytes }
+    let(:body) { body_class.new(content) }
+
+    let(:dir) { Dir.mktmpdir }
+
+    before do
+      controller.instance_variable_set(:@dir, dir)
+      controller.instance_variable_set(:@headers, { filename: 'payload.bin' })
+    end
+
+    after { FileUtils.rm_rf(dir) }
+
+    it 'copies a body without newlines to disk in bounded chunks' do
+      path = controller.send(:fetch_data, body, 'binary', false)
+
+      expect(File.size(path)).to eq(content.bytesize)
+      expect(body.largest_chunk).to be <= 1.megabyte
+    end
+  end
 end
